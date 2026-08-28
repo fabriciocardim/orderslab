@@ -5,10 +5,14 @@ spring:
   application:
     name: order-api
   datasource:
-    url: jdbc:postgresql://localhost:5432/orderdb
-    username: order
-    password: order_password
-    driver-class-name: org.postgresql.Driver
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1
+    username: sa
+    password: sa
+    driver-class-name: org.h2.Driver
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
   jpa:
     hibernate:
       ddl-auto: update
