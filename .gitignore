@@ -1,0 +1,15 @@
+# IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# Build (Maven)
+target/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
