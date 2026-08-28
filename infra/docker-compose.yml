@@ -1,69 +1,82 @@
-version: '3.8'
-
 services:
   # ==========================================
-  # INFRAESTRUTURA BASE
+  # BANCO DE DADOS (compartilhado pelas APIs: order-api, payment-api, invoice-api)
   # ==========================================
-
-  # Banco de Dados para o Keycloak
-  postgres-keycloak:
+  postgres-api:
     image: postgres:15-alpine
-    container_name: postgres-keycloak
+    container_name: postgres-api
     environment:
-      POSTGRES_DB: keycloak
-      POSTGRES_USER: keycloak
-      POSTGRES_PASSWORD: keycloak_password
+      POSTGRES_DB: apisdb
+      POSTGRES_USER: apis_user
+      POSTGRES_PASSWORD: apis_password
     ports:
       - "5432:5432"
     networks:
       - lab-network
 
+  # ==========================================
+  # INFRAESTRUTURA BASE (ainda não utilizada nesta fase)
+  # ==========================================
+
+  # Banco de Dados para o Keycloak
+  # postgres-keycloak:
+  #   image: postgres:15-alpine
+  #   container_name: postgres-keycloak
+  #   environment:
+  #     POSTGRES_DB: keycloak
+  #     POSTGRES_USER: keycloak
+  #     POSTGRES_PASSWORD: keycloak_password
+  #   ports:
+  #     - "5432:5432"
+  #   networks:
+  #     - lab-network
+
   # Identity Provider (Keycloak)
-  keycloak:
-    image: quay.io/keycloak/keycloak:24.0.1
-    container_name: keycloak
-    environment:
-      KC_BOOTSTRAP_ADMIN_USERNAME: admin
-      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
-      KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://postgres-keycloak:5432/keycloak
-      KC_DB_USERNAME: keycloak
-      KC_DB_PASSWORD: keycloak_password
-    command: start-dev
-    ports:
-      - "8080:8080"
-    depends_on:
-      - postgres-keycloak
-    networks:
-      - lab-network
+  # keycloak:
+  #   image: quay.io/keycloak/keycloak:24.0.1
+  #   container_name: keycloak
+  #   environment:
+  #     KC_BOOTSTRAP_ADMIN_USERNAME: admin
+  #     KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+  #     KC_DB: postgres
+  #     KC_DB_URL: jdbc:postgresql://postgres-keycloak:5432/keycloak
+  #     KC_DB_USERNAME: keycloak
+  #     KC_DB_PASSWORD: keycloak_password
+  #   command: start-dev
+  #   ports:
+  #     - "8080:8080"
+  #   depends_on:
+  #     - postgres-keycloak
+  #   networks:
+  #     - lab-network
 
   # Zookeeper (Necessário para o Kafka)
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.5.0
-    container_name: zookeeper
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    networks:
-      - lab-network
+  # zookeeper:
+  #   image: confluentinc/cp-zookeeper:7.5.0
+  #   container_name: zookeeper
+  #   environment:
+  #     ZOOKEEPER_CLIENT_PORT: 2181
+  #     ZOOKEEPER_TICK_TIME: 2000
+  #   networks:
+  #     - lab-network
 
   # Apache Kafka
-  kafka:
-    image: confluentinc/cp-kafka:7.5.0
-    container_name: kafka
-    ports:
-      - "9092:9092"
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_HOST://kafka:29092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-    depends_on:
-      - zookeeper
-    networks:
-      - lab-network
+  # kafka:
+  #   image: confluentinc/cp-kafka:7.5.0
+  #   container_name: kafka
+  #   ports:
+  #     - "9092:9092"
+  #   environment:
+  #     KAFKA_BROKER_ID: 1
+  #     KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+  #     KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_HOST://kafka:29092
+  #     KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+  #     KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+  #     KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+  #   depends_on:
+  #     - zookeeper
+  #   networks:
+  #     - lab-network
 
   # ==========================================
   # MICROSSERVIÇOS (SPRING BOOT)
@@ -77,39 +90,45 @@ services:
     ports:
       - "8081:8080"
     environment:
-      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-api:5432/apisdb
+      - SPRING_DATASOURCE_USERNAME=apis_user
+      - SPRING_DATASOURCE_PASSWORD=apis_password
     depends_on:
-      - kafka
+      - postgres-api
     networks:
       - lab-network
 
-  servico-pagamento:
-    build:
-      context: ../payment-api
-      dockerfile: Dockerfile
-    container_name: payment-api
-    ports:
-      - "8082:8080"
-    environment:
-      - SPRING_PROFILES_ACTIVE=dev
-    depends_on:
-      - kafka
-    networks:
-      - lab-network
+  # ==========================================
+  # MICROSSERVIÇOS (ainda não utilizados nesta fase)
+  # ==========================================
 
-  servico-nota-fiscal:
-    build:
-      context: ../invoice-api
-      dockerfile: Dockerfile
-    container_name: invoice-api
-    ports:
-      - "8083:8080"
-    environment:
-      - SPRING_PROFILES_ACTIVE=dev
-    depends_on:
-      - kafka
-    networks:
-      - lab-network
+  # servico-pagamento:
+  #   build:
+  #     context: ../payment-api
+  #     dockerfile: Dockerfile
+  #   container_name: payment-api
+  #   ports:
+  #     - "8082:8080"
+  #   environment:
+  #     - SPRING_PROFILES_ACTIVE=dev
+  #   depends_on:
+  #     - kafka
+  #   networks:
+  #     - lab-network
+
+  # servico-nota-fiscal:
+  #   build:
+  #     context: ../invoice-api
+  #     dockerfile: Dockerfile
+  #   container_name: invoice-api
+  #   ports:
+  #     - "8083:8080"
+  #   environment:
+  #     - SPRING_PROFILES_ACTIVE=dev
+  #   depends_on:
+  #     - kafka
+  #   networks:
+  #     - lab-network
 
 networks:
   lab-network:
