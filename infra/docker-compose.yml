@@ -98,6 +98,22 @@ services:
     networks:
       - lab-network
 
+  servico-pagamento:
+    build:
+      context: ../payment-api
+      dockerfile: Dockerfile
+    container_name: payment-api
+    ports:
+      - "8082:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-api:5432/apisdb
+      - SPRING_DATASOURCE_USERNAME=apis_user
+      - SPRING_DATASOURCE_PASSWORD=apis_password
+    depends_on:
+      - postgres-api
+    networks:
+      - lab-network
+
   # ==========================================
   # MICROSSERVIÇOS (ainda não utilizados nesta fase)
   # ==========================================
