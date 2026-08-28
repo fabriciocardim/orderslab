@@ -1,0 +1,13 @@
+target/
+.git
+.gitignore
+.gitattributes
+.mvn/
+mvnw
+mvnw.cmd
+HELP.md
+*.md
+.settings/
+.project
+.classpath
+mvnw-compile.log

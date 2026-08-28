@@ -70,30 +70,57 @@ orderslab/
 ### Pré-requisitos
 
 * **Docker** e **Docker Compose** instalados.
-* **Java 21+** e **Maven**.
+* **Java 21+** e **Maven** — necessários apenas se for rodar algum microsserviço fora do Docker (Opção B).
 * **Node.js** (para o frontend).
 
-### Passo 1: Subir a Infraestrutura Base
+### Opção A: Tudo via Docker Compose (recomendado)
 
-Acesse a pasta de infraestrutura e suba os containers essenciais (Kafka, Zookeeper, PostgreSQL e Keycloak):
+Builda as imagens e sobe banco de dados + microsserviços já containerizados — não precisa de Java nem Maven instalados, o build acontece dentro do container (`Dockerfile` multi-stage):
 
 ```bash
 cd infra
-docker compose up -d
-
+docker compose up -d --build
 ```
 
-### Passo 2: Executar os Microsserviços
+Nesta fase, isso sobe:
 
-Cada microsserviço reside em sua própria pasta. Para rodar o **Serviço de Pedidos**, por exemplo:
+| Serviço | Descrição | Porta |
+| --- | --- | --- |
+| `postgres-api` | Banco de dados compartilhado pelas APIs | `5432` |
+| `order-api` | Microsserviço de Pedidos | `8081` |
+
+Verifique se subiu certo:
 
 ```bash
-cd ../servico-pedido
-mvn spring-boot:run
-
+docker compose ps
+curl http://localhost:8081/actuator/health
 ```
 
-*(Repita o processo nas pastas `servico-pagamento` e `servico-nota-fiscal` em seus respectivos terminais, ajustando as portas conforme mapeado).*
+Para derrubar os containers:
+
+```bash
+docker compose down
+```
+
+> Keycloak, Kafka e os microsserviços `payment-api`/`invoice-api` ainda não existem/estão desativados — os blocos correspondentes estão comentados em `infra/docker-compose.yml` e serão reativados conforme as fases do laboratório avançam (ver seção 5).
+
+### Opção B: Rodando um microsserviço localmente (fora do Docker)
+
+Suba só o banco de dados:
+
+```bash
+cd infra
+docker compose up -d postgres-api
+```
+
+Em outro terminal, rode o microsserviço desejado usando o Maven Wrapper do próprio projeto (ex.: **order-api**):
+
+```bash
+cd ../order-api
+./mvnw spring-boot:run
+```
+
+*(Repita o processo nas pastas `payment-api` e `invoice-api` quando esses módulos existirem, ajustando as portas conforme mapeado).*
 
 ---
 
