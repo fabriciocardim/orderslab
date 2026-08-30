@@ -102,7 +102,7 @@ Para derrubar os containers:
 docker compose down
 ```
 
-> Keycloak, Kafka e os microsserviços `payment-api`/`invoice-api` ainda não existem/estão desativados — os blocos correspondentes estão comentados em `infra/docker-compose.yml` e serão reativados conforme as fases do laboratório avançam (ver seção 5).
+> Keycloak, Kafka e os microsserviços `payment-api`/`invoice-api` ainda não existem/estão desativados — os blocos correspondentes estão comentados em `infra/docker-compose.yml` e serão reativados conforme as fases do laboratório avançam (ver seção 6).
 
 ### Opção B: Rodando um microsserviço localmente (fora do Docker)
 
@@ -124,12 +124,109 @@ cd ../order-api
 
 ---
 
-## 🗺️ 5. Fases de Evolução do Laboratório
+## ☸️ 5. Executando com Kubernetes
+
+Além do Docker Compose (seção 4), o laboratório também roda em um cluster **Kubernetes local** (testado com o Kubernetes embutido do **Docker Desktop**). Os manifests ficam em [`infra/k8s/`](infra/k8s).
+
+### 5.1 De onde vieram os manifests
+
+Os arquivos de `infra/k8s/` nasceram a partir do `docker-compose.yml`, convertidos automaticamente com o [`kompose`](https://kompose.io):
+
+```bash
+kompose convert -f infra/docker-compose.yml -o infra/k8s/
+```
+
+O `kompose` traduz cada serviço do Compose em dois objetos do Kubernetes (ver seção 5.2) — mas essa tradução é só um ponto de partida. **Os manifests atuais já foram ajustados manualmente** e não devem ser regenerados às cegas com `kompose convert` de novo, porque isso reverteria os ajustes abaixo:
+
+| Ajuste manual | Por quê |
+| --- | --- |
+| `imagePullPolicy: Never` nos deployments de `order-service`/`payment-service` | Essas imagens só existem no Docker local (Kubernetes puro não builda nada); sem isso o cluster tenta baixar do Docker Hub e falha com `ImagePullBackOff` |
+| `type: LoadBalancer` nos Services | Expõe as portas direto em `localhost`, sem precisar de `kubectl port-forward` (ver seção 5.5) |
+| Label `app` no lugar de `io.kompose.service` | Remove a dependência visual da ferramenta `kompose`; o mecanismo (label + selector) em si é padrão do Kubernetes |
+| Nomes `order-service`/`payment-service` no lugar de `servico-pedido`/`servico-pagamento` | Padronização de nomenclatura em inglês, consistente com o resto do projeto |
+
+### 5.2 Estrutura dos manifests: Deployment + Service
+
+Cada serviço do Compose gerou **dois arquivos**, porque são dois objetos do Kubernetes com responsabilidades diferentes:
+
+- **`*-deployment.yaml`** — descreve o *workload*: qual imagem rodar, quantas réplicas, variáveis de ambiente. Cria e gerencia os Pods.
+- **`*-service.yaml`** — descreve o *acesso de rede*: um nome DNS interno fixo e estável (ex.: `postgres-api`, resolvido pelo `SPRING_DATASOURCE_URL` dos outros serviços) que faz *load balancing* entre os Pods, já que o IP de um Pod muda toda vez que ele reinicia.
+
+| Serviço | Deployment | Service | Imagem |
+| --- | --- | --- | --- |
+| Postgres | [`postgres-api-deployment.yaml`](infra/k8s/postgres-api-deployment.yaml) | [`postgres-api-service.yaml`](infra/k8s/postgres-api-service.yaml) | `postgres:15-alpine` (pública) |
+| Pedidos | [`order-service-deployment.yaml`](infra/k8s/order-service-deployment.yaml) | [`order-service-service.yaml`](infra/k8s/order-service-service.yaml) | `order-service` (local) |
+| Pagamentos | [`payment-service-deployment.yaml`](infra/k8s/payment-service-deployment.yaml) | [`payment-service-service.yaml`](infra/k8s/payment-service-service.yaml) | `payment-service` (local) |
+
+### 5.3 Build das imagens
+
+Diferente do Compose, o Kubernetes **não builda nada** — ele só roda imagens que já existem. Antes de aplicar os manifests, gere as imagens locais com os mesmos nomes usados em `image:` nos deployments:
+
+```bash
+docker build -t order-service order-api
+docker build -t payment-service payment-api
+```
+
+> Se alterar o código de um dos serviços, é preciso rebuildar a imagem **e** rodar `kubectl rollout restart deployment/order-service` (ou `payment-service`) — como `imagePullPolicy: Never`, o Kubernetes não detecta sozinho que a imagem local mudou.
+
+### 5.4 Subindo a stack
+
+```bash
+kubectl apply -f infra/k8s/
+```
+
+```bash
+kubectl get pods
+```
+
+É normal `order-service`/`payment-service` reiniciarem uma ou duas vezes logo no início — os manifests não têm um equivalente ao `depends_on` do Compose, então eles podem tentar conectar no Postgres antes dele estar pronto. O `restartPolicy: Always` se recupera sozinho em segundos.
+
+### 5.5 Acessando os serviços (LoadBalancer)
+
+Os três Services são do tipo `LoadBalancer`. No Kubernetes do Docker Desktop, isso expõe a porta direto em `localhost` — de forma permanente, sem precisar manter nenhum comando rodando em segundo plano:
+
+| Serviço | URL |
+| --- | --- |
+| `order-service` | http://localhost:8081 |
+| `payment-service` | http://localhost:8082 |
+| `postgres-api` | `localhost:5432` |
+
+```bash
+kubectl get svc
+```
+
+Confirme que a coluna `EXTERNAL-IP` mostra `localhost` (pode levar alguns segundos após o `apply`).
+
+### 5.6 Parando a stack
+
+```bash
+kubectl delete -f infra/k8s/
+```
+
+Remove os Deployments e Services (os Pods somem junto). As imagens Docker locais **não** são apagadas — só os objetos do cluster.
+
+### 5.7 Comandos úteis
+
+| Comando | Uso |
+| --- | --- |
+| `kubectl apply -f infra/k8s/` | Cria/atualiza tudo que está na pasta |
+| `kubectl delete -f infra/k8s/` | Remove tudo que está na pasta |
+| `kubectl get pods -w` | Acompanha o status dos pods em tempo real |
+| `kubectl get svc` | Lista os Services (IP interno, `EXTERNAL-IP`, portas) |
+| `kubectl logs <pod>` | Mostra os logs de um pod específico |
+| `kubectl describe pod <pod>` | Detalha eventos do pod — útil pra investigar `ImagePullBackOff`/`CrashLoopBackOff` |
+| `kubectl rollout restart deployment/<nome>` | Recria os pods de um deployment pra pegar uma imagem local nova |
+| `kubectl apply --dry-run=client -f infra/k8s/` | Valida a sintaxe dos manifests sem aplicar nada no cluster |
+| `kubectl port-forward svc/<nome> <porta>:<porta>` | Túnel manual e temporário — só necessário se o Service voltar a ser `ClusterIP` |
+
+---
+
+## 🗺️ 6. Fases de Evolução do Laboratório
 
 * **Fase 1 (Atual):** Implementação da estrutura base, comunicação síncrona via HTTP/REST, sem persistência em banco de dados (estado em memória) e conteinerização via Docker.
 * **Fase 2:** Evolução da comunicação síncrona para mensageria assíncrona utilizando **Apache Kafka**.
 * **Fase 3:** Orquestração de fluxos e rotinas com **Apache Airflow**.
-* **Fase 4:** Implantação e validação local utilizando **Kubernetes** (Minikube/Kind), garantindo pods e serviços isolados.
+* **Fase 4 (Em andamento):** Implantação e validação local utilizando **Kubernetes** (cluster local do Docker Desktop — ver seção 5), garantindo pods e serviços isolados.
 * **Fase 5:** Implementação da segurança de ponta a ponta com **Keycloak (IAM)** protegendo rotas e APIs.
 
 ---
