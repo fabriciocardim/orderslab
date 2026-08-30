@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: postgres-api
+  name: postgres-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-api
+  template:
+    metadata:
+      labels:
+        app: postgres-api
+    spec:
+      containers:
+        - env:
+            - name: POSTGRES_DB
+              value: apisdb
+            - name: POSTGRES_PASSWORD
+              value: apis_password
+            - name: POSTGRES_USER
+              value: apis_user
+          image: postgres:15-alpine
+          name: postgres-api
+          ports:
+            - containerPort: 5432
+              protocol: TCP
+      restartPolicy: Always

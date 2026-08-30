@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: order-service
+  name: order-service
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: order-service
+  template:
+    metadata:
+      labels:
+        app: order-service
+    spec:
+      containers:
+        - env:
+            - name: SPRING_DATASOURCE_PASSWORD
+              value: apis_password
+            - name: SPRING_DATASOURCE_URL
+              value: jdbc:postgresql://postgres-api:5432/apisdb
+            - name: SPRING_DATASOURCE_USERNAME
+              value: apis_user
+          image: order-service
+          imagePullPolicy: Never
+          name: order-api
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+      restartPolicy: Always
