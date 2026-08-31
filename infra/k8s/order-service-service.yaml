@@ -4,6 +4,7 @@ metadata:
   labels:
     app: order-service
   name: order-service
+  namespace: orderslab
 spec:
   type: LoadBalancer
   ports:

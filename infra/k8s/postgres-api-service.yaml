@@ -4,6 +4,7 @@ metadata:
   labels:
     app: postgres-api
   name: postgres-api
+  namespace: orderslab
 spec:
   type: LoadBalancer
   ports:

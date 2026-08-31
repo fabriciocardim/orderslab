@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: kafka
+  name: kafka
+  namespace: orderslab
+spec:
+  type: LoadBalancer
+  ports:
+    - name: "9092"
+      port: 9092
+      targetPort: 9092
+    - name: "29092"
+      port: 29092
+      targetPort: 29092
+    # Controller do KRaft: diferente do Compose, o Service só encaminha
+    # portas listadas aqui — sem isso o broker não se registra (timeout).
+    - name: "9093"
+      port: 9093
+      targetPort: 9093
+  selector:
+    app: kafka

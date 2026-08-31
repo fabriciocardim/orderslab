@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: kafbat-ui
+  name: kafbat-ui
+  namespace: orderslab
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafbat-ui
+  template:
+    metadata:
+      labels:
+        app: kafbat-ui
+    spec:
+      containers:
+        - env:
+            - name: KAFKA_CLUSTERS_0_NAME
+              value: orderslab
+            - name: KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS
+              value: kafka:29092
+          image: ghcr.io/kafbat/kafka-ui:v1.5.0
+          name: kafbat-ui
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+      restartPolicy: Always

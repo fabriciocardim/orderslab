@@ -4,6 +4,7 @@ metadata:
   labels:
     app: order-service
   name: order-service
+  namespace: orderslab
 spec:
   replicas: 3
   selector:
@@ -22,6 +23,8 @@ spec:
               value: jdbc:postgresql://postgres-api:5432/apisdb
             - name: SPRING_DATASOURCE_USERNAME
               value: apis_user
+            - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+              value: kafka:29092
           image: order-service
           imagePullPolicy: Never
           name: order-api

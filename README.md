@@ -29,7 +29,8 @@ O domínio do laboratório é a **Gestão de Pedidos**, estruturado em um modelo
 | **Serviço Pagamento (payment-api)** | Spring Boot / Java 17 | `8082` | `8080` |
 | **Serviço Nota Fiscal (invoice-api)** | Spring Boot / Java 17 | `8083` | `8080` |
 | **Keycloak (IAM)** | Keycloak | `8080` | `8080` |
-| **Apache Kafka** | Confluent / Zookeeper | `9092` | `9092` |
+| **Apache Kafka** | Apache Kafka (modo KRaft, sem Zookeeper) | `9092` | `9092` / `29092` |
+| **Kafbat UI** | UI de visualização/administração do Kafka | `8090` | `8090` |
 | **Frontend** | React (Vite) | `3000` | `80` |
 
 ---
@@ -88,13 +89,20 @@ Nesta fase, isso sobe:
 | --- | --- | --- |
 | `postgres-api` | Banco de dados compartilhado pelas APIs | `5432` |
 | `order-api` | Microsserviço de Pedidos | `8081` |
+| `payment-api` | Microsserviço de Pagamentos | `8082` |
+| `kafka` | Broker Kafka (modo KRaft) — `9092` para acesso externo/local, `29092` para os demais containers | `9092` |
+| `kafbat-ui` | UI web para inspecionar tópicos/mensagens do Kafka | `8090` |
 
 Verifique se subiu certo:
 
 ```bash
 docker compose ps
 curl http://localhost:8081/actuator/health
+curl http://localhost:8082/actuator/health
+curl http://localhost:8090/actuator/health
 ```
+
+Acesse a UI do Kafka em http://localhost:8090 para inspecionar tópicos e mensagens do broker.
 
 Para derrubar os containers:
 
@@ -102,7 +110,7 @@ Para derrubar os containers:
 docker compose down
 ```
 
-> Keycloak, Kafka e os microsserviços `payment-api`/`invoice-api` ainda não existem/estão desativados — os blocos correspondentes estão comentados em `infra/docker-compose.yml` e serão reativados conforme as fases do laboratório avançam (ver seção 6).
+> Keycloak e o microsserviço `invoice-api` ainda não existem/estão desativados — os blocos correspondentes estão comentados em `infra/docker-compose.yml` e serão reativados conforme as fases do laboratório avançam (ver seção 6). O Kafka já está ativo, mas nenhum dos microsserviços ainda produz/consome mensagens nele (ver seção 6, Fase 2).
 
 ### Opção B: Rodando um microsserviço localmente (fora do Docker)
 
@@ -152,9 +160,13 @@ Cada serviço do Compose gerou **dois arquivos**, porque são dois objetos do Ku
 - **`*-deployment.yaml`** — descreve o *workload*: qual imagem rodar, quantas réplicas, variáveis de ambiente. Cria e gerencia os Pods.
 - **`*-service.yaml`** — descreve o *acesso de rede*: um nome DNS interno fixo e estável (ex.: `postgres-api`, resolvido pelo `SPRING_DATASOURCE_URL` dos outros serviços) que faz *load balancing* entre os Pods, já que o IP de um Pod muda toda vez que ele reinicia.
 
+Além desses pares, existe um terceiro tipo de manifest, à parte: [`namespace.yaml`](infra/k8s/namespace.yaml) (`kind: Namespace`), que cria o namespace `orderslab`. Todo Deployment e Service abaixo já declara `namespace: orderslab` no `metadata` — isso isola os recursos deste laboratório de qualquer outra coisa que você rode no mesmo cluster do Docker Desktop (ver seção 5.4).
+
 | Serviço | Deployment | Service | Imagem |
 | --- | --- | --- | --- |
 | Postgres | [`postgres-api-deployment.yaml`](infra/k8s/postgres-api-deployment.yaml) | [`postgres-api-service.yaml`](infra/k8s/postgres-api-service.yaml) | `postgres:15-alpine` (pública) |
+| Kafka | [`kafka-deployment.yaml`](infra/k8s/kafka-deployment.yaml) | [`kafka-service.yaml`](infra/k8s/kafka-service.yaml) | `apache/kafka:4.2.0` (pública) |
+| Kafbat UI | [`kafbat-ui-deployment.yaml`](infra/k8s/kafbat-ui-deployment.yaml) | [`kafbat-ui-service.yaml`](infra/k8s/kafbat-ui-service.yaml) | `ghcr.io/kafbat/kafka-ui:v1.5.0` (pública) |
 | Pedidos | [`order-service-deployment.yaml`](infra/k8s/order-service-deployment.yaml) | [`order-service-service.yaml`](infra/k8s/order-service-service.yaml) | `order-service` (local) |
 | Pagamentos | [`payment-service-deployment.yaml`](infra/k8s/payment-service-deployment.yaml) | [`payment-service-service.yaml`](infra/k8s/payment-service-service.yaml) | `payment-service` (local) |
 
@@ -171,9 +183,20 @@ docker build -t payment-service payment-api
 
 ### 5.4 Subindo a stack
 
+O namespace precisa existir antes do resto, porque os manifests já declaram `namespace: orderslab` — e a ordem alfabética dos arquivos na pasta não garante que `namespace.yaml` seja aplicado primeiro:
+
 ```bash
+kubectl apply -f infra/k8s/namespace.yaml
 kubectl apply -f infra/k8s/
 ```
+
+Opcional, mas recomendado: fixe `orderslab` como namespace padrão do seu contexto atual do `kubectl`, assim os comandos deste README (inclusive os da seção 5.7) funcionam sem precisar de `-n orderslab` toda hora:
+
+```bash
+kubectl config set-context --current --namespace=orderslab
+```
+
+> Isso é uma configuração do seu `kubectl` local (`~/.kube/config`), não do cluster — vale pra qualquer outro projeto que você rodar apontando pro mesmo contexto. Pra voltar ao padrão: `kubectl config set-context --current --namespace=default`.
 
 ```bash
 kubectl get pods
@@ -183,13 +206,15 @@ kubectl get pods
 
 ### 5.5 Acessando os serviços (LoadBalancer)
 
-Os três Services são do tipo `LoadBalancer`. No Kubernetes do Docker Desktop, isso expõe a porta direto em `localhost` — de forma permanente, sem precisar manter nenhum comando rodando em segundo plano:
+Os cinco Services são do tipo `LoadBalancer`. No Kubernetes do Docker Desktop, isso expõe a porta direto em `localhost` — de forma permanente, sem precisar manter nenhum comando rodando em segundo plano:
 
 | Serviço | URL |
 | --- | --- |
 | `order-service` | http://localhost:8081 |
 | `payment-service` | http://localhost:8082 |
 | `postgres-api` | `localhost:5432` |
+| `kafka` | `localhost:9092` |
+| `kafbat-ui` | http://localhost:8090 |
 
 ```bash
 kubectl get svc
@@ -203,7 +228,7 @@ Confirme que a coluna `EXTERNAL-IP` mostra `localhost` (pode levar alguns segund
 kubectl delete -f infra/k8s/
 ```
 
-Remove os Deployments e Services (os Pods somem junto). As imagens Docker locais **não** são apagadas — só os objetos do cluster.
+Remove o namespace `orderslab` inteiro — Deployments, Services e Pods somem junto, porque apagar o namespace já derruba tudo que existe dentro dele (também dá pra rodar direto `kubectl delete namespace orderslab`, com o mesmo efeito). As imagens Docker locais **não** são apagadas — só os objetos do cluster.
 
 ### 5.7 Comandos úteis
 
@@ -211,6 +236,8 @@ Remove os Deployments e Services (os Pods somem junto). As imagens Docker locais
 | --- | --- |
 | `kubectl apply -f infra/k8s/` | Cria/atualiza tudo que está na pasta |
 | `kubectl delete -f infra/k8s/` | Remove tudo que está na pasta |
+| `kubectl config set-context --current --namespace=orderslab` | Fixa `orderslab` como namespace padrão do contexto atual |
+| `kubectl get pods -n orderslab` | Lista os pods do namespace, sem depender do namespace padrão do contexto |
 | `kubectl get pods -w` | Acompanha o status dos pods em tempo real |
 | `kubectl get svc` | Lista os Services (IP interno, `EXTERNAL-IP`, portas) |
 | `kubectl logs <pod>` | Mostra os logs de um pod específico |
@@ -224,7 +251,7 @@ Remove os Deployments e Services (os Pods somem junto). As imagens Docker locais
 ## 🗺️ 6. Fases de Evolução do Laboratório
 
 * **Fase 1 (Atual):** Implementação da estrutura base, comunicação síncrona via HTTP/REST, sem persistência em banco de dados (estado em memória) e conteinerização via Docker.
-* **Fase 2:** Evolução da comunicação síncrona para mensageria assíncrona utilizando **Apache Kafka**.
+* **Fase 2:** Evolução da comunicação síncrona para mensageria assíncrona utilizando **Apache Kafka** (o broker já está disponível via Docker Compose/Kubernetes — ver seção 5.2 —, mas nenhum microsserviço ainda produz ou consome mensagens nele).
 * **Fase 3:** Orquestração de fluxos e rotinas com **Apache Airflow**.
 * **Fase 4 (Em andamento):** Implantação e validação local utilizando **Kubernetes** (cluster local do Docker Desktop — ver seção 5), garantindo pods e serviços isolados.
 * **Fase 5:** Implementação da segurança de ponta a ponta com **Keycloak (IAM)** protegendo rotas e APIs.
