@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -23,6 +24,11 @@ public class PaymentController {
     public ResponseEntity<PaymentResponse> reserve(@RequestBody PaymentReservationRequest request) {
         PaymentResponse response = paymentService.reserve(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @GetMapping
+    public ResponseEntity<List<PaymentResponse>> findAll() {
+        return ResponseEntity.ok(paymentService.findAll());
     }
 
     @GetMapping("/{id}")
