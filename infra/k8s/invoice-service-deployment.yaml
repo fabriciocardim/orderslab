@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: invoice-service
+  name: invoice-service
+  namespace: orderslab
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: invoice-service
+  template:
+    metadata:
+      labels:
+        app: invoice-service
+    spec:
+      containers:
+        - env:
+            - name: SPRING_DATASOURCE_PASSWORD
+              value: apis_password
+            - name: SPRING_DATASOURCE_URL
+              value: jdbc:postgresql://postgres-api:5432/apisdb
+            - name: SPRING_DATASOURCE_USERNAME
+              value: apis_user
+            - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+              value: kafka:29092
+          image: invoice-service
+          imagePullPolicy: Never
+          name: invoice-api
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+      restartPolicy: Always

@@ -130,23 +130,23 @@ services:
     networks:
       - lab-network
 
-  # ==========================================
-  # MICROSSERVIÇOS (ainda não utilizados nesta fase)
-  # ==========================================
-
-  # servico-nota-fiscal:
-  #   build:
-  #     context: ../invoice-api
-  #     dockerfile: Dockerfile
-  #   container_name: invoice-api
-  #   ports:
-  #     - "8083:8080"
-  #   environment:
-  #     - SPRING_PROFILES_ACTIVE=dev
-  #   depends_on:
-  #     - kafka
-  #   networks:
-  #     - lab-network
+  invoice-service:
+    build:
+      context: ../invoice-api
+      dockerfile: Dockerfile
+    container_name: invoice-api
+    ports:
+      - "8083:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-api:5432/apisdb
+      - SPRING_DATASOURCE_USERNAME=apis_user
+      - SPRING_DATASOURCE_PASSWORD=apis_password
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+    depends_on:
+      - postgres-api
+      - kafka
+    networks:
+      - lab-network
 
 networks:
   lab-network:

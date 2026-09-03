@@ -90,6 +90,7 @@ Nesta fase, isso sobe:
 | `postgres-api` | Banco de dados compartilhado pelas APIs | `5432` |
 | `order-api` | Microsserviço de Pedidos | `8081` |
 | `payment-api` | Microsserviço de Pagamentos | `8082` |
+| `invoice-api` | Microsserviço de Notas Fiscais | `8083` |
 | `kafka` | Broker Kafka (modo KRaft) — `9092` para acesso externo/local, `29092` para os demais containers | `9092` |
 | `kafbat-ui` | UI web para inspecionar tópicos/mensagens do Kafka | `8090` |
 
@@ -99,6 +100,7 @@ Verifique se subiu certo:
 docker compose ps
 curl http://localhost:8081/actuator/health
 curl http://localhost:8082/actuator/health
+curl http://localhost:8083/actuator/health
 curl http://localhost:8090/actuator/health
 ```
 
@@ -110,7 +112,7 @@ Para derrubar os containers:
 docker compose down
 ```
 
-> Keycloak e o microsserviço `invoice-api` ainda não existem/estão desativados — os blocos correspondentes estão comentados em `infra/docker-compose.yml` e serão reativados conforme as fases do laboratório avançam (ver seção 6). O Kafka já está ativo, mas nenhum dos microsserviços ainda produz/consome mensagens nele (ver seção 6, Fase 2).
+> Keycloak ainda não existe/está desativado — o bloco correspondente está comentado em `infra/docker-compose.yml` e será reativado conforme as fases do laboratório avançam (ver seção 6). O Kafka já está ativo, mas nenhum dos microsserviços ainda produz/consome mensagens nele (ver seção 6, Fase 2).
 
 ### Opção B: Rodando um microsserviço localmente (fora do Docker)
 
@@ -128,7 +130,7 @@ cd ../order-api
 ./mvnw spring-boot:run
 ```
 
-*(Repita o processo nas pastas `payment-api` e `invoice-api` quando esses módulos existirem, ajustando as portas conforme mapeado).*
+*(Repita o processo nas pastas `payment-api` e `invoice-api`, ajustando as portas conforme mapeado).*
 
 ---
 
@@ -169,6 +171,7 @@ Além desses pares, existe um terceiro tipo de manifest, à parte: [`namespace.y
 | Kafbat UI | [`kafbat-ui-deployment.yaml`](infra/k8s/kafbat-ui-deployment.yaml) | [`kafbat-ui-service.yaml`](infra/k8s/kafbat-ui-service.yaml) | `ghcr.io/kafbat/kafka-ui:v1.5.0` (pública) |
 | Pedidos | [`order-service-deployment.yaml`](infra/k8s/order-service-deployment.yaml) | [`order-service-service.yaml`](infra/k8s/order-service-service.yaml) | `order-service` (local) |
 | Pagamentos | [`payment-service-deployment.yaml`](infra/k8s/payment-service-deployment.yaml) | [`payment-service-service.yaml`](infra/k8s/payment-service-service.yaml) | `payment-service` (local) |
+| Notas Fiscais | [`invoice-service-deployment.yaml`](infra/k8s/invoice-service-deployment.yaml) | [`invoice-service-service.yaml`](infra/k8s/invoice-service-service.yaml) | `invoice-service` (local) |
 
 ### 5.3 Build das imagens
 
@@ -177,9 +180,10 @@ Diferente do Compose, o Kubernetes **não builda nada** — ele só roda imagens
 ```bash
 docker build -t order-service order-api
 docker build -t payment-service payment-api
+docker build -t invoice-service invoice-api
 ```
 
-> Se alterar o código de um dos serviços, é preciso rebuildar a imagem **e** rodar `kubectl rollout restart deployment/order-service` (ou `payment-service`) — como `imagePullPolicy: Never`, o Kubernetes não detecta sozinho que a imagem local mudou.
+> Se alterar o código de um dos serviços, é preciso rebuildar a imagem **e** rodar `kubectl rollout restart deployment/order-service` (ou `payment-service`/`invoice-service`) — como `imagePullPolicy: Never`, o Kubernetes não detecta sozinho que a imagem local mudou.
 
 ### 5.4 Subindo a stack
 
@@ -206,12 +210,13 @@ kubectl get pods
 
 ### 5.5 Acessando os serviços (LoadBalancer)
 
-Os cinco Services são do tipo `LoadBalancer`. No Kubernetes do Docker Desktop, isso expõe a porta direto em `localhost` — de forma permanente, sem precisar manter nenhum comando rodando em segundo plano:
+Os seis Services são do tipo `LoadBalancer`. No Kubernetes do Docker Desktop, isso expõe a porta direto em `localhost` — de forma permanente, sem precisar manter nenhum comando rodando em segundo plano:
 
 | Serviço | URL |
 | --- | --- |
 | `order-service` | http://localhost:8081 |
 | `payment-service` | http://localhost:8082 |
+| `invoice-service` | http://localhost:8083 |
 | `postgres-api` | `localhost:5432` |
 | `kafka` | `localhost:9092` |
 | `kafbat-ui` | http://localhost:8090 |
