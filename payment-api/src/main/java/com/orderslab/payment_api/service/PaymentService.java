@@ -7,9 +7,11 @@ import com.orderslab.payment_api.model.Payment;
 import com.orderslab.payment_api.model.PaymentStatus;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 @Service
 public class PaymentService {
@@ -39,6 +41,12 @@ public class PaymentService {
 
     public PaymentResponse findById(UUID paymentId) {
         return toResponse(findOrThrow(paymentId));
+    }
+
+    public List<PaymentResponse> findAll() {
+        return payments.values().stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
     }
 
     private Payment findOrThrow(UUID paymentId) {
