@@ -2,7 +2,7 @@ name: invoice-api
 
 on:
   push:
-    branches: [develop, main]
+    branches: ['**']
     tags:
       - 'invoice-api-v*.*.*'
   pull_request:

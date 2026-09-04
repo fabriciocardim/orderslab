@@ -2,7 +2,7 @@ name: payment-api
 
 on:
   push:
-    branches: [develop, main]
+    branches: ['**']
     tags:
       - 'payment-api-v*.*.*'
   pull_request:

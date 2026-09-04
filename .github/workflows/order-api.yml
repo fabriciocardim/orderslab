@@ -2,7 +2,7 @@ name: order-api
 
 on:
   push:
-    branches: [develop, main]
+    branches: ['**']
     tags:
       - 'order-api-v*.*.*'
   pull_request:
