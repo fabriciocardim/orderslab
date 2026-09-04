@@ -25,9 +25,9 @@ O domínio do laboratório é a **Gestão de Pedidos**, estruturado em um modelo
 
 | Componente | Tecnologia | Porta Local | Porta no Pod (K8s) |
 | --- | --- | --- | --- |
-| **Serviço Pedido (order-api)** | Spring Boot / Java 17 | `8081` | `8080` |
-| **Serviço Pagamento (payment-api)** | Spring Boot / Java 17 | `8082` | `8080` |
-| **Serviço Nota Fiscal (invoice-api)** | Spring Boot / Java 17 | `8083` | `8080` |
+| **Serviço Pedido (order-api)** | Spring Boot / Java 21 | `8081` | `8080` |
+| **Serviço Pagamento (payment-api)** | Spring Boot / Java 21 | `8082` | `8080` |
+| **Serviço Nota Fiscal (invoice-api)** | Spring Boot / Java 21 | `8083` | `8080` |
 | **Keycloak (IAM)** | Keycloak | `8080` | `8080` |
 | **Apache Kafka** | Apache Kafka (modo KRaft, sem Zookeeper) | `9092` | `9092` / `29092` |
 | **Kafbat UI** | UI de visualização/administração do Kafka | `8090` | `8090` |
@@ -45,8 +45,8 @@ orderslab/
 ├── order-api/                    <-- Microsserviço 1: Domínio de Pedidos (Spring Boot / Maven / Dockerfile)
 ├── payment-api/                  <-- Microsserviço 2: Domínio de Pagamentos (Spring Boot / Maven / Dockerfile)
 ├── invoice-api/                  <-- Microsserviço 3: Emissão de Notas Fiscais (Spring Boot / Maven / Dockerfile)
-├── frontend-react/               <-- Aplicação Frontend em React (Vite)
-├── airflow/                      <-- DAGs e pipelines do Apache Airflow
+├── frontend-react/               <-- (ainda não criado) Aplicação Frontend em React (Vite)
+├── airflow/                      <-- (ainda não criado) DAGs e pipelines do Apache Airflow
 └── README.md
 
 ```
@@ -60,7 +60,7 @@ orderslab/
 * As funcionalidades de pagamento e emissão de nota fiscal **não** possuem lógica de negócio real; o sistema apenas processa e transaciona mensagens informando se o pagamento foi realizado ou não e se a nota foi emitida ou não.
 
 
-3. **Ausência de Banco de Nos Serviços (Fase Inicial):** Os microsserviços de negócio não utilizam banco de dados em um primeiro momento (o estado é mantido em memória, ex: `ConcurrentHashMap`), focando estritamente na análise e validação da comunicação entre os serviços.
+3. **Ausência de Banco de Dados nos Serviços (Fase Inicial):** Os microsserviços de negócio não utilizam banco de dados em um primeiro momento (o estado é mantido em memória, ex: `ConcurrentHashMap`), focando estritamente na análise e validação da comunicação entre os serviços.
 4. **Prontidão para Nuvem (Cloud-Native):** Desenvolvidos on-premisse mas arquitetados para migração futura à nuvem, contando com conteinerização via Docker (`Dockerfile` multi-stage) e orquestração via Kubernetes (`Pods` e `Deployments` dedicados).
 5. **Segurança e IAM:** Camada final de autenticação e autorização centralizada utilizando o **Keycloak** integrado aos microsserviços e ao frontend.
 
