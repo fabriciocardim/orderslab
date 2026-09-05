@@ -275,9 +275,10 @@ As três APIs usam exatamente o mesmo toolchain (Java 21, Maven Wrapper, `Docker
 | --- | --- | --- |
 | **`build-and-test`** | checkout → `setup-java` (Temurin 21, cache do `~/.m2`) → `./mvnw -B clean verify` → publica o relatório de testes (`target/surefire-reports/`) como artifact | sempre — push e pull_request |
 | **`quality`** | checkout → JDK 21 → `./mvnw -B pmd:check` → publica `target/pmd.xml` como artifact, mesmo se o PMD falhar | sempre, **em paralelo** ao `build-and-test` — nenhum dos dois depende do outro |
-| **`package`** | extrai a versão do nome da tag e roda `docker build` com o `Dockerfile` do serviço | só em push de tag (ver 6.4), e só depois que `build-and-test` **e** `quality` passarem |
+| **`security`** | checkout → JDK 21 → inicializa o CodeQL → `./mvnw -B clean package -DskipTests` (só compila) → analisa e sobe os achados pra aba Security do GitHub | sempre, **em paralelo** aos outros dois — não depende de `build-and-test`/`quality` |
+| **`package`** | extrai a versão do nome da tag e roda `docker build` com o `Dockerfile` do serviço | só em push de tag (ver 6.4), e só depois que `build-and-test`, `quality` **e** `security` passarem |
 
-> `package` builda a imagem só pra validar — não existe `docker push` nem login em registry ainda (ver 6.6).
+> `package` builda a imagem só pra validar — não existe `docker push` nem login em registry ainda (ver 6.7).
 
 Pra reproduzir os jobs localmente, dentro da pasta do serviço:
 
@@ -321,11 +322,27 @@ cd order-api
 
 Relatório fica em `target/pmd.xml`; o job `quality` sobe esse arquivo como artifact mesmo quando o PMD encontra violação e derruba o build.
 
-### 6.6 Limitações atuais
+### 6.6 Segurança de código (CodeQL)
+
+O job `security` roda o [CodeQL](https://codeql.github.com/), o motor de SAST (análise estática de segurança) do próprio GitHub: ele compila o serviço, monta um banco de dados a partir do código gerado na compilação e roda queries prontas (OWASP Top 10, CWEs conhecidos) com rastreamento de fluxo de dados — de uma entrada não confiável (ex.: parâmetro de request) até um sink perigoso (query nativa, `Runtime.exec`, deserialização etc.).
+
+Diferente do PMD (lint estático de estilo/boas práticas), o CodeQL analisa vulnerabilidade no código que o time escreveu — não substitui, é complementar.
+
+Como o monorepo tem três módulos Java independentes, cada execução do `service-ci.yml` builda e analisa só o serviço daquele `service-name`; o `category` do upload (`/language:java-<service-name>`) evita que os achados de um serviço sobrescrevam os de outro na aba **Security → Code scanning**.
+
+```bash
+cd order-api
+./mvnw -B clean package -DskipTests   # o que o security builda antes de analisar
+```
+
+> Não existe uma CLI simples pra "rodar o CodeQL local" equivalente ao `pmd:check` — a análise de verdade só acontece no job do GitHub Actions (ou instalando a [CodeQL CLI](https://github.com/github/codeql-cli-binaries)).
+
+### 6.7 Limitações atuais
 
 * **Nenhum registry configurado** — o `package` builda a imagem só dentro do runner efêmero do GitHub Actions; nada é publicado ou fica disponível depois que o job termina.
 * **Push fora de PR dispara os 3 serviços** — trade-off da seção 6.3; dá pra restringir sem arriscar a tag separando o job de release num workflow à parte, só com gatilho de tag (sem `paths`).
 * **SNAPSHOT/RELEASE é só nomenclatura** — não existe branch de comportamento no pipeline pra isso ainda (seção 6.4).
+* **CodeQL roda mas não bloqueia merge** — os achados aparecem na aba Security, mas não há *branch protection* exigindo o check `security` (ou zero alertas) antes de mergear.
 
 ---
 

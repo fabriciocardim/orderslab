@@ -71,9 +71,43 @@ jobs:
           path: ${{ inputs.service-name }}/target/pmd.xml
           retention-days: 7
 
+  security:
+    name: Security (CodeQL)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    defaults:
+      run:
+        working-directory: ${{ inputs.service-name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: ${{ inputs.service-name }}/pom.xml
+
+      - name: Inicializar CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: java
+
+      - name: Build (sem testes, só para o CodeQL rastrear a compilação)
+        run: ./mvnw -B clean package -DskipTests
+
+      - name: Analisar com CodeQL
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:java-${{ inputs.service-name }}"
+
   package:
     name: Package (Docker)
-    needs: [build-and-test, quality]
+    needs: [build-and-test, quality, security]
     # Release por tag: só builda a imagem quando a tag empurrada bate com
     # o padrão "<service-name>-vX.Y.Z" (ver workflow chamador). Ainda não
     # há registry configurado — quando houver, o push da imagem entra aqui.
