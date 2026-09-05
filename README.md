@@ -25,9 +25,9 @@ O domínio do laboratório é a **Gestão de Pedidos**, estruturado em um modelo
 
 | Componente | Tecnologia | Porta Local | Porta no Pod (K8s) |
 | --- | --- | --- | --- |
-| **Serviço Pedido (order-api)** | Spring Boot / Java 17 | `8081` | `8080` |
-| **Serviço Pagamento (payment-api)** | Spring Boot / Java 17 | `8082` | `8080` |
-| **Serviço Nota Fiscal (invoice-api)** | Spring Boot / Java 17 | `8083` | `8080` |
+| **Serviço Pedido (order-api)** | Spring Boot / Java 21 | `8081` | `8080` |
+| **Serviço Pagamento (payment-api)** | Spring Boot / Java 21 | `8082` | `8080` |
+| **Serviço Nota Fiscal (invoice-api)** | Spring Boot / Java 21 | `8083` | `8080` |
 | **Keycloak (IAM)** | Keycloak | `8080` | `8080` |
 | **Apache Kafka** | Apache Kafka (modo KRaft, sem Zookeeper) | `9092` | `9092` / `29092` |
 | **Kafbat UI** | UI de visualização/administração do Kafka | `8090` | `8090` |
@@ -45,8 +45,8 @@ orderslab/
 ├── order-api/                    <-- Microsserviço 1: Domínio de Pedidos (Spring Boot / Maven / Dockerfile)
 ├── payment-api/                  <-- Microsserviço 2: Domínio de Pagamentos (Spring Boot / Maven / Dockerfile)
 ├── invoice-api/                  <-- Microsserviço 3: Emissão de Notas Fiscais (Spring Boot / Maven / Dockerfile)
-├── frontend-react/               <-- Aplicação Frontend em React (Vite)
-├── airflow/                      <-- DAGs e pipelines do Apache Airflow
+├── frontend-react/               <-- (ainda não criado) Aplicação Frontend em React (Vite)
+├── airflow/                      <-- (ainda não criado) DAGs e pipelines do Apache Airflow
 └── README.md
 
 ```
@@ -60,7 +60,7 @@ orderslab/
 * As funcionalidades de pagamento e emissão de nota fiscal **não** possuem lógica de negócio real; o sistema apenas processa e transaciona mensagens informando se o pagamento foi realizado ou não e se a nota foi emitida ou não.
 
 
-3. **Ausência de Banco de Nos Serviços (Fase Inicial):** Os microsserviços de negócio não utilizam banco de dados em um primeiro momento (o estado é mantido em memória, ex: `ConcurrentHashMap`), focando estritamente na análise e validação da comunicação entre os serviços.
+3. **Ausência de Banco de Dados nos Serviços (Fase Inicial):** Os microsserviços de negócio não utilizam banco de dados em um primeiro momento (o estado é mantido em memória, ex: `ConcurrentHashMap`), focando estritamente na análise e validação da comunicação entre os serviços.
 4. **Prontidão para Nuvem (Cloud-Native):** Desenvolvidos on-premisse mas arquitetados para migração futura à nuvem, contando com conteinerização via Docker (`Dockerfile` multi-stage) e orquestração via Kubernetes (`Pods` e `Deployments` dedicados).
 5. **Segurança e IAM:** Camada final de autenticação e autorização centralizada utilizando o **Keycloak** integrado aos microsserviços e ao frontend.
 
@@ -253,7 +253,100 @@ Remove o namespace `orderslab` inteiro — Deployments, Services e Pods somem ju
 
 ---
 
-## 🗺️ 6. Fases de Evolução do Laboratório
+## 🔄 6. CI/CD com GitHub Actions
+
+Cada microsserviço tem um pipeline próprio e independente — a mesma regra de Independência dos Serviços (seção 3) vale pro CI/CD. Os workflows ficam em [`.github/workflows/`](.github/workflows).
+
+### 6.1 Estrutura dos workflows
+
+```text
+.github/workflows/
+├── service-ci.yml       <-- Workflow reusável: os jobs de verdade vivem aqui
+├── order-api.yml        <-- Dispara o service-ci.yml com service-name: order-api
+├── payment-api.yml      <-- Dispara o service-ci.yml com service-name: payment-api
+└── invoice-api.yml      <-- Dispara o service-ci.yml com service-name: invoice-api
+```
+
+As três APIs usam exatamente o mesmo toolchain (Java 21, Maven Wrapper, `Dockerfile` multi-stage), então os jobs moram uma única vez em [`service-ci.yml`](.github/workflows/service-ci.yml) — cada `*-api.yml` só declara os gatilhos daquele serviço e chama o workflow reusável passando `service-name`. Editar um job (ex.: trocar a versão do JDK) é editar um arquivo só, não três.
+
+### 6.2 Jobs
+
+| Job | O que faz | Roda quando |
+| --- | --- | --- |
+| **`build-and-test`** | checkout → `setup-java` (Temurin 21, cache do `~/.m2`) → `./mvnw -B clean verify` → publica o relatório de testes (`target/surefire-reports/`) como artifact | sempre — push e pull_request |
+| **`quality`** | checkout → JDK 21 → `./mvnw -B pmd:check` → publica `target/pmd.xml` como artifact, mesmo se o PMD falhar | sempre, **em paralelo** ao `build-and-test` — nenhum dos dois depende do outro |
+| **`security`** | checkout → JDK 21 → inicializa o CodeQL → `./mvnw -B clean package -DskipTests` (só compila) → analisa e sobe os achados pra aba Security do GitHub | sempre, **em paralelo** aos outros dois — não depende de `build-and-test`/`quality` |
+| **`package`** | extrai a versão do nome da tag e roda `docker build` com o `Dockerfile` do serviço | só em push de tag (ver 6.4), e só depois que `build-and-test`, `quality` **e** `security` passarem |
+
+> `package` builda a imagem só pra validar — não existe `docker push` nem login em registry ainda (ver 6.7).
+
+Pra reproduzir os jobs localmente, dentro da pasta do serviço:
+
+```bash
+./mvnw -B clean verify   # o que o build-and-test roda
+./mvnw -B pmd:check      # o que o quality roda
+```
+
+### 6.3 Gatilhos: quando cada workflow dispara
+
+| Evento | Filtro | Roda pra |
+| --- | --- | --- |
+| `push` em qualquer branch | nenhum filtro de path | **os 3 serviços**, mesmo que só um tenha mudado |
+| `push` de tag `<service>-vX.Y.Z` | o nome da tag já é por serviço | só o serviço daquela tag |
+| `pull_request` pra `develop`/`main` | `paths` restrito à pasta do serviço | só o serviço que mudou |
+
+O `pull_request` é escopado certinho por `paths`, mas o `push` não tem filtro de path nenhum — é proposital, não esquecimento. Combinar `paths` com `tags` no mesmo gatilho de `push` tem uma pegadinha do GitHub Actions: uma tag empurrada apontando pra um commit que já existe (o caso normal — tagueamento acontece depois do merge) gera um diff vazio pra aquele push específico, e o filtro de `paths` bloquearia o job silenciosamente — inclusive o `package` de release. Pra não arriscar isso, tirou-se o `paths` do `push` inteiro; o efeito colateral é que um push direto (fora de PR) em qualquer branch dispara os 3 workflows, não só o do serviço alterado. Como a maior parte do fluxo passa por PR (que continua escopado), o custo é só uns minutos a mais de CI em pushes diretos.
+
+### 6.4 Convenção de tags e release
+
+Cada serviço libera sua própria tag, prefixada pelo nome dele — não existe uma tag global pro monorepo inteiro:
+
+```text
+order-api-v1.0.0
+payment-api-v1.0.2
+invoice-api-v1.0.0
+```
+
+O prefixo por serviço existe pra não acoplar o versionamento dos três — bate com a regra de Independência dos Serviços (seção 3): uma tag global forçaria os três a compartilhar número de versão e ritmo de release, mesmo que só um tenha mudado.
+
+O sufixo depois da versão (`-SNAPSHOT`, `-RELEASE`, ou nenhum) é livre — hoje é só nomenclatura, o pipeline não trata isso de forma diferente: qualquer string depois do `-v` vira literalmente a tag da imagem Docker (`order-api-v1.0.0-SNAPSHOT` → imagem `order-api:1.0.0-SNAPSHOT`). Uma diferenciação de comportamento de verdade (ex.: só RELEASE virar `latest`, ou só RELEASE ser publicada) fica pra quando houver um registry configurado.
+
+### 6.5 Qualidade de código (PMD)
+
+Os três `pom.xml` declaram o `maven-pmd-plugin` (versão 3.28.0) com os rulesets padrão `bestpractices` + `errorprone`. Ele **não** está amarrado a nenhuma fase do build — só roda quando chamado explicitamente (`pmd:check`), então não interfere no `mvn verify`/`build-and-test`.
+
+```bash
+cd order-api
+./mvnw pmd:check
+```
+
+Relatório fica em `target/pmd.xml`; o job `quality` sobe esse arquivo como artifact mesmo quando o PMD encontra violação e derruba o build.
+
+### 6.6 Segurança de código (CodeQL)
+
+O job `security` roda o [CodeQL](https://codeql.github.com/), o motor de SAST (análise estática de segurança) do próprio GitHub: ele compila o serviço, monta um banco de dados a partir do código gerado na compilação e roda queries prontas (OWASP Top 10, CWEs conhecidos) com rastreamento de fluxo de dados — de uma entrada não confiável (ex.: parâmetro de request) até um sink perigoso (query nativa, `Runtime.exec`, deserialização etc.).
+
+Diferente do PMD (lint estático de estilo/boas práticas), o CodeQL analisa vulnerabilidade no código que o time escreveu — não substitui, é complementar.
+
+Como o monorepo tem três módulos Java independentes, cada execução do `service-ci.yml` builda e analisa só o serviço daquele `service-name`; o `category` do upload (`/language:java-<service-name>`) evita que os achados de um serviço sobrescrevam os de outro na aba **Security → Code scanning**.
+
+```bash
+cd order-api
+./mvnw -B clean package -DskipTests   # o que o security builda antes de analisar
+```
+
+> Não existe uma CLI simples pra "rodar o CodeQL local" equivalente ao `pmd:check` — a análise de verdade só acontece no job do GitHub Actions (ou instalando a [CodeQL CLI](https://github.com/github/codeql-cli-binaries)).
+
+### 6.7 Limitações atuais
+
+* **Nenhum registry configurado** — o `package` builda a imagem só dentro do runner efêmero do GitHub Actions; nada é publicado ou fica disponível depois que o job termina.
+* **Push fora de PR dispara os 3 serviços** — trade-off da seção 6.3; dá pra restringir sem arriscar a tag separando o job de release num workflow à parte, só com gatilho de tag (sem `paths`).
+* **SNAPSHOT/RELEASE é só nomenclatura** — não existe branch de comportamento no pipeline pra isso ainda (seção 6.4).
+* **CodeQL roda mas não bloqueia merge** — os achados aparecem na aba Security, mas não há *branch protection* exigindo o check `security` (ou zero alertas) antes de mergear.
+
+---
+
+## 🗺️ 7. Fases de Evolução do Laboratório
 
 * **Fase 1 (Atual):** Implementação da estrutura base, comunicação síncrona via HTTP/REST, sem persistência em banco de dados (estado em memória) e conteinerização via Docker.
 * **Fase 2:** Evolução da comunicação síncrona para mensageria assíncrona utilizando **Apache Kafka** (o broker já está disponível via Docker Compose/Kubernetes — ver seção 5.2 —, mas nenhum microsserviço ainda produz ou consome mensagens nele).

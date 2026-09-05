@@ -1,0 +1,22 @@
+name: invoice-api
+
+on:
+  push:
+    branches: ['**']
+    tags:
+      - 'invoice-api-v*.*.*'
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - 'invoice-api/**'
+      - '.github/workflows/invoice-api.yml'
+      - '.github/workflows/service-ci.yml'
+
+jobs:
+  ci:
+    permissions:
+      contents: read
+      security-events: write
+    uses: ./.github/workflows/service-ci.yml
+    with:
+      service-name: invoice-api
