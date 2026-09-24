@@ -1,26 +1,22 @@
 <!--
 Sync Impact Report
-- Version change: 1.0.0 → 2.0.0
+- Version change: 2.0.0 → 3.0.0
 - Modified principles (redefinition, not mere expansion — justifies MAJOR):
-  - II. Simulação de Domínio sem Lógica de Negócio Real
-    → II. Funcionalidade Técnica Real, Domínio de Negócio Simples
-    (serviços deixam de poder ser stubs tecnicamente incompletos; fluxos técnicos agora
-    MUST funcionar de ponta a ponta, mesmo com regras de negócio propositalmente simples)
-  - IV. Prontidão para Nuvem (Cloud-Native desde o Início)
-    → IV. Portabilidade Real para Qualquer Nuvem (Cloud-Agnostic)
-    (de "arquitetado para migração futura" para requisito ativo de portabilidade/anti-lock-in)
-- Added principles:
-  - VI. Observabilidade como Requisito de Primeira Classe
-  - VII. Governança de Remediação Autônoma (SRE)
-- Added sections:
-  - Preâmbulo de Missão e Visão de Longo Prazo (antes de "Core Principles")
-  - Fase 6 (Observabilidade) e Fase 7 (SRE Autônomo) em "Fases de Evolução do Laboratório"
+  - III. Estado em Memória (Fase Inicial, Sem Persistência)
+    → III. Persistência Real desde a Fase 1
+    (reverte o mandato anterior: `ConcurrentHashMap` deixa de ser um estado final aceitável;
+    persistência via Postgres/JPA passa a ser exigida assim que uma feature tocar o serviço,
+    em vez de ficar adiada para uma fase futura não especificada)
+  - II. Funcionalidade Técnica Real, Domínio de Negócio Simples
+    (esclarecimento, dentro do mesmo princípio: validação de entrada explicitamente listada
+    como parte do que conta como "fluxo técnico real" — não é mais um item adiável)
+- Added principles: none
+- Added sections: none
 - Removed sections: none
-- Follow-up TODOs:
-  - A stack específica de observabilidade (Fase 6) e o desenho técnico dos agentes de SRE
-    (Fase 7) ainda não estão definidos — serão detalhados via /speckit-specify quando essas
-    fases forem iniciadas. Não é um placeholder pendente nesta constitution, é trabalho
-    futuro fora do escopo desta emenda.
+- Follow-up TODOs: nenhum
+- Motivação: correção explícita do responsável pelo laboratório — as diretivas de "estado em
+  memória" e "sem validação" valiam só para o estágio inicial do projeto e devem parar de
+  valer a partir desta emenda.
 -->
 
 # orderslab Constitution
@@ -55,7 +51,9 @@ laboratório de simular microsserviços realistas.
 Os microsserviços MUST implementar fluxos técnicos reais e completos — persistência
 funcionando de fato quando uma feature exigir, eventos publicados/consumidos corretamente no
 Kafka, e APIs que respondem de ponta a ponta sem atalhos artificiais ou respostas
-hard-coded. Isso deixa de ser "simulação" no sentido técnico. As regras de negócio em si,
+hard-coded. Isso inclui validar toda entrada de API (Bean Validation) antes de processá-la —
+uma API que aceita dados inválidos ou nulos silenciosamente não conta como fluxo técnico
+real. Isso deixa de ser "simulação" no sentido técnico. As regras de negócio em si,
 porém, MUST permanecer propositalmente simples: `payment-api` e `invoice-api` decidem e
 retornam sucesso/falha de forma simplificada, sem cálculo de imposto real, antifraude ou
 qualquer lógica completa de domínio financeiro/fiscal. Qualquer ampliação real de domínio de
@@ -67,18 +65,22 @@ observabilidade — não para modelar domínios de pagamento/fiscal reais. Mas o
 de "um sistema rodando de verdade" exige que os fluxos técnicos funcionem de ponta a ponta,
 não apenas na aparência.
 
-### III. Estado em Memória (Fase Inicial, Sem Persistência)
-Na Fase 1 atual, os três microsserviços MUST manter estado apenas em memória (ex.:
-`ConcurrentHashMap`), sem depender de um banco de dados relacional para funcionar.
-Dependências de banco (ex.: driver Postgres em `pom.xml`) e infraestrutura de banco (ex.:
-serviço `postgres-api` em `infra/docker-compose.yml`/`infra/k8s/`) PODEM já existir em
-preparação, mas a configuração de datasource (`spring.datasource.*`) MUST permanecer
-desabilitada/comentada em `application.properties` até que a evolução do laboratório
-introduza persistência formalmente. Quando essa transição acontecer, ela MUST seguir o
-Princípio II (funcionalidade técnica real, não um meio-termo simulado).
+### III. Persistência Real desde a Fase 1
+Os três microsserviços MUST usar armazenamento persistente real (Postgres via JPA) para o
+estado de qualquer feature implementada a partir desta emenda — `ConcurrentHashMap` deixa de
+ser um estado final aceitável para qualquer serviço; só pode existir como andaime temporário
+durante o desenvolvimento de uma feature, nunca como a implementação entregue. Cada serviço
+MUST declarar suas próprias dependências de persistência (`spring-data-jpa` + driver
+Postgres) e sua própria configuração de datasource ativa em `application.properties`, mesmo
+compartilhando a mesma instância Postgres (`postgres-api`/`apisdb`) com os outros dois
+serviços — a independência exigida pelo Princípio I MUST ser preservada no nível de schema
+(cada serviço dono do seu próprio schema/tabelas, sem acessar tabelas de outro serviço).
 
-**Rationale**: mantém o foco estrito na comunicação entre serviços antes de introduzir
-complexidade de persistência, evitando acoplamento prematuro a um schema de banco.
+**Rationale**: o objetivo final do laboratório é ter um sistema rodando de verdade — um
+serviço que só existe em memória não sobrevive a um restart nem pode ser validado de forma
+realista por ferramentas de observabilidade/SRE. Esta é uma redefinição explícita do
+Princípio III anterior (que mantinha o estado em memória como regra da "Fase Inicial"): essa
+diretiva foi superada e não vale mais a partir desta emenda.
 
 ### IV. Portabilidade Real para Qualquer Nuvem (Cloud-Agnostic)
 Todo serviço MUST continuar conteinerizável via `Dockerfile` multi-stage e implantável pelos
@@ -155,8 +157,8 @@ também no versionamento.
 
 O laboratório evolui em fases sequenciais e cumulativas (ver README seção 7):
 
-1. **Fase 1 (atual)**: estrutura base, comunicação síncrona REST, sem persistência,
-   conteinerização Docker.
+1. **Fase 1 (atual)**: estrutura base, comunicação síncrona REST, persistência real via
+   Postgres/JPA (ver Princípio III), validação de request, conteinerização Docker.
 2. **Fase 2**: comunicação assíncrona via Apache Kafka (broker já disponível; produção e
    consumo de mensagens ainda não implementados pelos serviços).
 3. **Fase 3**: orquestração de fluxos com Apache Airflow.
@@ -169,8 +171,8 @@ O laboratório evolui em fases sequenciais e cumulativas (ver README seção 7):
    via observabilidade e abrem hotfixes/PRs automaticamente, com merge/deploy final ainda
    sob aprovação humana (ver Princípio VII).
 
-Uma feature que introduza capacidade de uma fase futura antes do previsto (ex.: ligar
-persistência antes da Fase 3, ou autenticação antes da Fase 5) MUST declarar esse
+Uma feature que introduza capacidade de uma fase futura antes do previsto (ex.: produzir
+eventos Kafka antes da Fase 2, ou autenticação antes da Fase 5) MUST declarar esse
 adiantamento explicitamente em `/speckit-specify` e `/speckit-plan`, para que o desvio da
 constitution vigente seja uma decisão consciente, não um efeito colateral silencioso.
 
@@ -193,4 +195,4 @@ respeitar a constitution vigente. Use [`README.md`](README.md) para instruções
 (como rodar, testar e implantar) e esta constitution para princípios de governança do
 laboratório.
 
-**Version**: 2.0.0 | **Ratified**: 2026-09-24 | **Last Amended**: 2026-09-24
+**Version**: 3.0.0 | **Ratified**: 2026-09-24 | **Last Amended**: 2026-09-24

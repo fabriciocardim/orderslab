@@ -60,7 +60,7 @@ orderslab/
 * As funcionalidades de pagamento e emissão de nota fiscal **não** possuem lógica de negócio real; o sistema apenas processa e transaciona mensagens informando se o pagamento foi realizado ou não e se a nota foi emitida ou não.
 
 
-3. **Ausência de Banco de Dados nos Serviços (Fase Inicial):** Os microsserviços de negócio não utilizam banco de dados em um primeiro momento (o estado é mantido em memória, ex: `ConcurrentHashMap`), focando estritamente na análise e validação da comunicação entre os serviços.
+3. **Persistência Real desde a Fase 1:** Os microsserviços utilizam banco de dados real (PostgreSQL via JPA) para o estado que cada feature exigir — armazenamento em memória (`ConcurrentHashMap`) só é aceitável como andaime temporário durante o desenvolvimento, nunca como implementação entregue (ver [constitution](.specify/memory/constitution.md), Princípio III).
 4. **Prontidão para Nuvem (Cloud-Native):** Desenvolvidos on-premisse mas arquitetados para migração futura à nuvem, contando com conteinerização via Docker (`Dockerfile` multi-stage) e orquestração via Kubernetes (`Pods` e `Deployments` dedicados).
 5. **Segurança e IAM:** Camada final de autenticação e autorização centralizada utilizando o **Keycloak** integrado aos microsserviços e ao frontend.
 
@@ -348,7 +348,7 @@ cd order-api
 
 ## 🗺️ 7. Fases de Evolução do Laboratório
 
-* **Fase 1 (Atual):** Implementação da estrutura base, comunicação síncrona via HTTP/REST, sem persistência em banco de dados (estado em memória) e conteinerização via Docker.
+* **Fase 1 (Atual):** Implementação da estrutura base, comunicação síncrona via HTTP/REST, persistência real via PostgreSQL/JPA e conteinerização via Docker.
 * **Fase 2:** Evolução da comunicação síncrona para mensageria assíncrona utilizando **Apache Kafka** (o broker já está disponível via Docker Compose/Kubernetes — ver seção 5.2 —, mas nenhum microsserviço ainda produz ou consome mensagens nele).
 * **Fase 3:** Orquestração de fluxos e rotinas com **Apache Airflow**.
 * **Fase 4 (Em andamento):** Implantação e validação local utilizando **Kubernetes** (cluster local do Docker Desktop — ver seção 5), garantindo pods e serviços isolados.
@@ -360,9 +360,11 @@ cd order-api
 
 O laboratório adota [Spec Kit](https://github.com/github/spec-kit) para o desenvolvimento de
 novas features, seguindo o fluxo de Spec-Driven Development (SDD). Os princípios de
-governança do projeto (independência dos serviços, ausência de banco de dados na fase
-inicial, prontidão cloud-native, etc. — ver seção 3 acima) estão formalizados em
-[`.specify/memory/constitution.md`](.specify/memory/constitution.md).
+governança do projeto (independência dos serviços, persistência real desde a Fase 1,
+portabilidade cloud-agnostic, observabilidade de primeira classe, etc. — ver seção 3 acima)
+estão formalizados em [`.specify/memory/constitution.md`](.specify/memory/constitution.md).
+O backlog de features candidatas, organizado pelas fases do laboratório, fica em
+[`ROADMAP.md`](ROADMAP.md).
 
 ### 8.1 Fluxo de trabalho
 
