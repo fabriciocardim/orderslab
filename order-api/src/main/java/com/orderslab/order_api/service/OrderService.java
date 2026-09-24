@@ -2,6 +2,7 @@ package com.orderslab.order_api.service;
 
 import com.orderslab.order_api.dto.OrderRequest;
 import com.orderslab.order_api.dto.OrderResponse;
+import com.orderslab.order_api.exception.InvalidStatusTransitionException;
 import com.orderslab.order_api.exception.OrderNotFoundException;
 import com.orderslab.order_api.model.Order;
 import com.orderslab.order_api.model.OrderStatus;
@@ -28,12 +29,18 @@ public class OrderService {
 
     public OrderResponse confirm(UUID orderId) {
         Order order = findOrThrow(orderId);
+        if (order.getStatus() != OrderStatus.PENDING) {
+            throw new InvalidStatusTransitionException(order.getStatus(), "ser confirmado");
+        }
         order.setStatus(OrderStatus.CONFIRMED);
         return toResponse(order);
     }
 
     public OrderResponse cancel(UUID orderId) {
         Order order = findOrThrow(orderId);
+        if (order.getStatus() != OrderStatus.PENDING) {
+            throw new InvalidStatusTransitionException(order.getStatus(), "ser cancelado");
+        }
         order.setStatus(OrderStatus.CANCELLED);
         return toResponse(order);
     }

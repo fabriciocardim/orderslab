@@ -20,7 +20,7 @@ public class Payment {
         this.id = UUID.randomUUID();
         this.orderId = orderId;
         this.amount = amount;
-        this.status = PaymentStatus.PENDING;
+        this.status = PaymentStatus.RESERVED;
         this.createdAt = Instant.now();
         this.updatedAt = Instant.now();
     }

@@ -2,6 +2,7 @@ package com.orderslab.invoice_api.service;
 
 import com.orderslab.invoice_api.dto.InvoiceRequest;
 import com.orderslab.invoice_api.dto.InvoiceResponse;
+import com.orderslab.invoice_api.exception.InvalidStatusTransitionException;
 import com.orderslab.invoice_api.exception.InvoiceNotFoundException;
 import com.orderslab.invoice_api.model.Invoice;
 import com.orderslab.invoice_api.model.InvoiceStatus;
@@ -28,12 +29,18 @@ public class InvoiceService {
 
     public InvoiceResponse issue(UUID invoiceId) {
         Invoice invoice = findOrThrow(invoiceId);
+        if (invoice.getStatus() != InvoiceStatus.PENDING) {
+            throw new InvalidStatusTransitionException(invoice.getStatus(), "ser emitida");
+        }
         invoice.setStatus(InvoiceStatus.ISSUED);
         return toResponse(invoice);
     }
 
     public InvoiceResponse cancel(UUID invoiceId) {
         Invoice invoice = findOrThrow(invoiceId);
+        if (invoice.getStatus() != InvoiceStatus.PENDING) {
+            throw new InvalidStatusTransitionException(invoice.getStatus(), "ser cancelada");
+        }
         invoice.setStatus(InvoiceStatus.CANCELLED);
         return toResponse(invoice);
     }

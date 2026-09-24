@@ -2,6 +2,7 @@ package com.orderslab.payment_api.service;
 
 import com.orderslab.payment_api.dto.PaymentReservationRequest;
 import com.orderslab.payment_api.dto.PaymentResponse;
+import com.orderslab.payment_api.exception.InvalidStatusTransitionException;
 import com.orderslab.payment_api.exception.PaymentNotFoundException;
 import com.orderslab.payment_api.model.Payment;
 import com.orderslab.payment_api.model.PaymentStatus;
@@ -22,19 +23,24 @@ public class PaymentService {
 
     public PaymentResponse reserve(PaymentReservationRequest request) {
         Payment payment = new Payment(request.getOrderId(), request.getAmount());
-        payment.setStatus(PaymentStatus.RESERVED);
         payments.put(payment.getId(), payment);
         return toResponse(payment);
     }
 
     public PaymentResponse confirm(UUID paymentId) {
         Payment payment = findOrThrow(paymentId);
+        if (payment.getStatus() != PaymentStatus.RESERVED) {
+            throw new InvalidStatusTransitionException(payment.getStatus(), "ser confirmado");
+        }
         payment.setStatus(PaymentStatus.CONFIRMED);
         return toResponse(payment);
     }
 
     public PaymentResponse cancel(UUID paymentId) {
         Payment payment = findOrThrow(paymentId);
+        if (payment.getStatus() != PaymentStatus.RESERVED) {
+            throw new InvalidStatusTransitionException(payment.getStatus(), "ser cancelado");
+        }
         payment.setStatus(PaymentStatus.CANCELLED);
         return toResponse(payment);
     }
