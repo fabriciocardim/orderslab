@@ -64,7 +64,7 @@ cada `-test` traz ferramentas distintas.
       arquivo: `ROADMAP.md`
 - [X] T004 Rodar `quickstart.md` (`specs/001-build-health-check/quickstart.md`) do início ao
       fim como validação final end-to-end da feature
-- [ ] T005 Commitar `spec.md`, `research.md`, `plan.md`, `quickstart.md`, `tasks.md` e o
+- [X] T005 Commitar `spec.md`, `research.md`, `plan.md`, `quickstart.md`, `tasks.md` e o
       `ROADMAP.md` atualizado na branch `feature/S001_incluirSDD`
 
 ---
