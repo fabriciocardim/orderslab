@@ -356,6 +356,48 @@ cd order-api
 
 ---
 
+## 🧭 8. Spec-Driven Development (Spec Kit)
+
+O laboratório adota [Spec Kit](https://github.com/github/spec-kit) para o desenvolvimento de
+novas features, seguindo o fluxo de Spec-Driven Development (SDD). Os princípios de
+governança do projeto (independência dos serviços, ausência de banco de dados na fase
+inicial, prontidão cloud-native, etc. — ver seção 3 acima) estão formalizados em
+[`.specify/memory/constitution.md`](.specify/memory/constitution.md).
+
+### 8.1 Fluxo de trabalho
+
+Os comandos abaixo ficam disponíveis como skills do Claude Code em `.claude/skills/` (uma
+sessão nova do agente precisa ser aberta após a instalação para que apareçam):
+
+| Ordem | Comando | O que faz |
+| --- | --- | --- |
+| 0 | `/speckit-constitution` | Cria/atualiza os princípios de governança do projeto |
+| 1 | `/speckit-specify` | Cria a especificação de uma feature |
+| 2 | `/speckit-plan` | Gera o plano técnico de implementação |
+| 3 | `/speckit-tasks` | Quebra o plano em tarefas acionáveis |
+| 4 | `/speckit-implement` | Executa a implementação das tarefas |
+| 5 | `/speckit-converge` | Avalia o código e lista trabalho restante como tarefas |
+
+Skills opcionais de reforço de qualidade: `/speckit-clarify` (antes do `/speckit-plan`, para
+reduzir ambiguidade), `/speckit-analyze` (depois do `/speckit-tasks`, checagem de
+consistência entre artefatos) e `/speckit-checklist` (depois do `/speckit-plan`, checklist de
+completude dos requisitos).
+
+### 8.2 Onde as coisas ficam
+
+```text
+.specify/
+├── memory/constitution.md   <-- Princípios de governança do laboratório
+├── templates/                <-- Templates de spec/plan/tasks
+└── scripts/                  <-- Scripts auxiliares dos comandos acima
+```
+
+Cada feature especificada via `/speckit-specify` MUST declarar qual(is) serviço(s)
+(`order-api`, `payment-api`, `invoice-api`) ela toca, já que o monorepo trata os três como
+projetos independentes (ver seção 3).
+
+---
+
 ## 📝 Licença
 
 Este projeto é de uso livre para estudos, testes e laboratórios de arquitetura de microsserviços.
