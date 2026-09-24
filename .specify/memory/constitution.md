@@ -1,22 +1,17 @@
 <!--
 Sync Impact Report
-- Version change: 2.0.0 → 3.0.0
-- Modified principles (redefinition, not mere expansion — justifies MAJOR):
-  - III. Estado em Memória (Fase Inicial, Sem Persistência)
-    → III. Persistência Real desde a Fase 1
-    (reverte o mandato anterior: `ConcurrentHashMap` deixa de ser um estado final aceitável;
-    persistência via Postgres/JPA passa a ser exigida assim que uma feature tocar o serviço,
-    em vez de ficar adiada para uma fase futura não especificada)
-  - II. Funcionalidade Técnica Real, Domínio de Negócio Simples
-    (esclarecimento, dentro do mesmo princípio: validação de entrada explicitamente listada
-    como parte do que conta como "fluxo técnico real" — não é mais um item adiável)
+- Version change: 3.0.0 → 3.1.0
+- Modified principles (expansão de orientação, não redefinição — MINOR):
+  - VI. Observabilidade como Requisito de Primeira Classe
+    (fecha a decisão de padrão de instrumentação — OpenTelemetry — que antes ficava
+    explicitamente adiada para quando a Fase 6 fosse especificada; a escolha de backend
+    (Prometheus/Grafana, Loki, Tempo/Jaeger etc.) continua em aberto para a Fase 6)
 - Added principles: none
 - Added sections: none
 - Removed sections: none
 - Follow-up TODOs: nenhum
-- Motivação: correção explícita do responsável pelo laboratório — as diretivas de "estado em
-  memória" e "sem validação" valiam só para o estágio inicial do projeto e devem parar de
-  valer a partir desta emenda.
+- Motivação: instrução explícita do responsável pelo laboratório — o projeto deve ficar
+  estruturado desde já para usar o padrão OpenTelemetry (OTel).
 -->
 
 # orderslab Constitution
@@ -106,18 +101,24 @@ Até lá, o bloco Keycloak permanece desativado/comentado em `infra/docker-compo
 ponto de verdade para identidade, consistente com a proposta do laboratório de estudar
 segurança corporativa com IdP.
 
-### VI. Observabilidade como Requisito de Primeira Classe
+### VI. Observabilidade como Requisito de Primeira Classe (Padrão OpenTelemetry)
 Todo serviço MUST ser instrumentado desde sua criação ou alteração — não depois — cobrindo
-os três pilares da observabilidade: logs estruturados, métricas e traces distribuídos. Uma
-feature especificada via `/speckit-specify` que toque um serviço MUST considerar a
-instrumentação de observabilidade como parte do escopo da própria feature, não como um débito
-técnico aceitável para depois. A stack e as ferramentas específicas de observabilidade serão
-escolhidas e formalizadas quando a Fase 6 for especificada, mas a exigência de instrumentar
-os três pilares já vale a partir desta emenda.
+os três pilares da observabilidade: logs estruturados, métricas e traces distribuídos. O
+projeto MUST usar **OpenTelemetry (OTel)** como padrão único de instrumentação — SDK/agente
+de auto-instrumentação emitindo telemetria no formato OTLP — independentemente de qual
+backend (Prometheus/Grafana, Loki, Tempo/Jaeger etc.) vier a consumir esses dados. A escolha
+dos backends específicos e a topologia do OTel Collector MUST ser formalizadas quando a Fase
+6 for especificada, mas o padrão de instrumentação já é OpenTelemetry a partir desta emenda —
+não é mais uma decisão em aberto. Uma feature especificada via `/speckit-specify` que toque
+um serviço MUST considerar sua instrumentação (mesmo que mínima, ex.: logs estruturados via
+OTel) como parte do escopo da própria feature, não como um débito técnico aceitável para
+depois.
 
 **Rationale**: os agentes autônomos de SRE (Princípio VII) dependem inteiramente de
 telemetria de qualidade; observabilidade adicionada retroativamente é sistematicamente pior
-e mais cara do que observabilidade desde o design.
+e mais cara do que observabilidade desde o design. OpenTelemetry, por ser um padrão aberto e
+vendor-neutral (CNCF), evita reinstrumentar o código toda vez que o backend de observabilidade
+mudar — reforçando a portabilidade exigida pelo Princípio IV.
 
 ### VII. Governança de Remediação Autônoma (SRE)
 Quando os agentes autônomos de SRE previstos para a Fase 7 forem implementados, eles PODEM
@@ -195,4 +196,4 @@ respeitar a constitution vigente. Use [`README.md`](README.md) para instruções
 (como rodar, testar e implantar) e esta constitution para princípios de governança do
 laboratório.
 
-**Version**: 3.0.0 | **Ratified**: 2026-09-24 | **Last Amended**: 2026-09-24
+**Version**: 3.1.0 | **Ratified**: 2026-09-24 | **Last Amended**: 2026-09-24

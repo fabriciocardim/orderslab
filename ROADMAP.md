@@ -45,7 +45,7 @@ Persistência real e validação deixam de ser adiadas — ver Princípio III da
 | 1.9 | Decisão de ownership de schema/DB | Definir, antes de ligar JPA: schema dedicado por serviço dentro de `apisdb`, ou bancos/instances separados — evita furar Princípio I por baixo do capô. | I, III | `infra/docker-compose.yml`, `infra/k8s/postgres-api-*.yaml` |
 | 1.10 | Persistência JPA simétrica | Adicionar `spring-data-jpa`+`postgresql` aos 3 poms; `@Entity`+`Repository` substituindo os `ConcurrentHashMap`; Flyway/Liquibase (recomendado) vs `ddl-auto`; ativar `spring.datasource.*`/`spring.jpa.*` nos 3 `application.properties`. | II, III | `*/pom.xml`, `*/model/*.java`, novo `*/repository/*Repository.java`, `*/application.properties` |
 | 1.11 | Testes de integração com Testcontainers | Após 1.10: `@SpringBootTest` + Testcontainers contra Postgres efêmero real. | II | `*/src/test/java/.../*IntegrationTest.java` |
-| 1.12 | Instrumentação básica (logging estruturado) | Logs consistentes nos pontos de transição de estado — gancho mínimo do Princípio VI, não a stack completa da Fase 6. Prioridade menor, não bloqueia o resto. | VI | `*/service/*Service.java`, `*/src/main/resources/logback-spring.xml` (novo, opcional) |
+| 1.12 | Instrumentação básica com OpenTelemetry | Adicionar o OTel Java agent (ou SDK) aos 3 serviços e logs estruturados via OTel nos pontos de transição de estado — gancho mínimo do Princípio VI (padrão OTel), não a stack completa da Fase 6 (sem Collector/backend ainda). Prioridade menor, não bloqueia o resto. | VI | `*/pom.xml`, `*/service/*Service.java`, `*/src/main/resources/logback-spring.xml` (novo, opcional) |
 
 **Sequenciamento interno**: 1.1 → 1.2 → 1.3 → 1.4 → 1.5 → 1.6/1.7/1.8 (trava de regressão
 antes de mexer em storage) → 1.9 → 1.10 → 1.11 → 1.12.
@@ -89,14 +89,18 @@ antes de mexer em storage) → 1.9 → 1.10 → 1.11 → 1.12.
 - **E5.5** Questão em aberto: constitution menciona integração "ao frontend", mas não existe
   frontend no repo hoje — resolver escopo (Swagger UI autenticado? só service-to-service?).
 
-### Fase 6 — Observabilidade (3 pilares)
-- **E6.1** Seleção de stack — Prometheus+Grafana, Loki/ELK, Tempo/Jaeger, OpenTelemetry
-  Collector como camada neutra (VI, IV).
-- **E6.2** Métricas — Micrometer + `/actuator/prometheus` nos 3 serviços (VI).
-- **E6.3** Logs estruturados centralizados — JSON com `trace_id`/`span_id`/id de entidade
-  (VI).
-- **E6.4** Tracing distribuído — OpenTelemetry SDK, trace contínuo order→payment→invoice
-  (VI).
+### Fase 6 — Observabilidade (3 pilares, padrão OpenTelemetry)
+O padrão de instrumentação já está decidido (OpenTelemetry, ver Princípio VI da
+constitution) — o que resta decidir nesta fase é só o backend de cada pilar e a topologia do
+OTel Collector.
+- **E6.1** Deploy do OTel Collector + seleção de backends — Prometheus/Grafana (métricas),
+  Loki/ELK (logs), Tempo/Jaeger (traces), todos recebendo dados via OTLP do Collector (VI, IV).
+- **E6.2** Métricas — auto-instrumentação OTel (+ Micrometer bridge se necessário) exportando
+  via OTLP nos 3 serviços (VI).
+- **E6.3** Logs estruturados centralizados — enriquecidos com `trace_id`/`span_id` (correlação
+  automática do OTel) e id de entidade, roteados pelo Collector (VI).
+- **E6.4** Tracing distribuído — propagação de contexto OTel via REST e headers Kafka, trace
+  contínuo order→payment→invoice (VI).
 - **E6.5** Alerting/SLOs básicos — sinais que a Fase 7 vai consumir (VI).
 - **E6.6** Dashboards como código, versionados (VI, IV).
 
