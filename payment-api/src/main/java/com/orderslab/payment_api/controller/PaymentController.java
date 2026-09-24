@@ -3,6 +3,7 @@ package com.orderslab.payment_api.controller;
 import com.orderslab.payment_api.dto.PaymentReservationRequest;
 import com.orderslab.payment_api.dto.PaymentResponse;
 import com.orderslab.payment_api.service.PaymentService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -21,7 +22,7 @@ public class PaymentController {
     }
 
     @PostMapping
-    public ResponseEntity<PaymentResponse> reserve(@RequestBody PaymentReservationRequest request) {
+    public ResponseEntity<PaymentResponse> reserve(@Valid @RequestBody PaymentReservationRequest request) {
         PaymentResponse response = paymentService.reserve(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
