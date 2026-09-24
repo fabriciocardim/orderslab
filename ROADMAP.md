@@ -89,20 +89,23 @@ antes de mexer em storage) → 1.9 → 1.10 → 1.11 → 1.12.
 - **E5.5** Questão em aberto: constitution menciona integração "ao frontend", mas não existe
   frontend no repo hoje — resolver escopo (Swagger UI autenticado? só service-to-service?).
 
-### Fase 6 — Observabilidade (3 pilares, padrão OpenTelemetry)
-O padrão de instrumentação já está decidido (OpenTelemetry, ver Princípio VI da
-constitution) — o que resta decidir nesta fase é só o backend de cada pilar e a topologia do
-OTel Collector.
-- **E6.1** Deploy do OTel Collector + seleção de backends — Prometheus/Grafana (métricas),
-  Loki/ELK (logs), Tempo/Jaeger (traces), todos recebendo dados via OTLP do Collector (VI, IV).
-- **E6.2** Métricas — auto-instrumentação OTel (+ Micrometer bridge se necessário) exportando
-  via OTLP nos 3 serviços (VI).
+### Fase 6 — Observabilidade (3 pilares, padrão OpenTelemetry → SigNoz)
+O par instrumentação+backend já está decidido (OpenTelemetry → SigNoz, ver Princípio VI da
+constitution) — SigNoz embute seu próprio OTel Collector e ClickHouse, dispensando montar uma
+stack modular separada de Prometheus/Grafana/Loki/Tempo. O que resta decidir nesta fase é a
+topologia de deploy.
+- **E6.1** Deploy do SigNoz self-hosted — Docker Compose (`infra/docker-compose.yml`) para
+  ambiente local e Helm chart em `infra/k8s/` para o cluster; apontar o endpoint OTLP do
+  SigNoz nos 3 serviços (VI, IV).
+- **E6.2** Métricas — auto-instrumentação OTel exportando via OTLP para o SigNoz nos 3
+  serviços (VI).
 - **E6.3** Logs estruturados centralizados — enriquecidos com `trace_id`/`span_id` (correlação
-  automática do OTel) e id de entidade, roteados pelo Collector (VI).
+  automática do OTel) e id de entidade, visualizados no SigNoz (VI).
 - **E6.4** Tracing distribuído — propagação de contexto OTel via REST e headers Kafka, trace
-  contínuo order→payment→invoice (VI).
-- **E6.5** Alerting/SLOs básicos — sinais que a Fase 7 vai consumir (VI).
-- **E6.6** Dashboards como código, versionados (VI, IV).
+  contínuo order→payment→invoice, visualizado no SigNoz (VI).
+- **E6.5** Alerting/SLOs básicos — usando o alerting nativo do SigNoz; sinais que a Fase 7 vai
+  consumir (VI).
+- **E6.6** Dashboards do SigNoz como código (export/import de JSON versionado no repo) (VI, IV).
 
 ### Fase 7 — SRE Autônomo
 - **E7.1** Agente de detecção — escopo determinístico (crash loop, taxa de erro, violação de

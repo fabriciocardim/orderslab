@@ -1,17 +1,17 @@
 <!--
 Sync Impact Report
-- Version change: 3.0.0 → 3.1.0
+- Version change: 3.1.0 → 3.2.0
 - Modified principles (expansão de orientação, não redefinição — MINOR):
-  - VI. Observabilidade como Requisito de Primeira Classe
-    (fecha a decisão de padrão de instrumentação — OpenTelemetry — que antes ficava
-    explicitamente adiada para quando a Fase 6 fosse especificada; a escolha de backend
-    (Prometheus/Grafana, Loki, Tempo/Jaeger etc.) continua em aberto para a Fase 6)
+  - VI. Observabilidade como Requisito de Primeira Classe (Padrão OpenTelemetry)
+    (fecha a decisão de backend de observabilidade — SigNoz — que a emenda anterior ainda
+    deixava em aberto para a Fase 6; a topologia exata de deploy do SigNoz (Compose vs.
+    Helm/k8s) continua em aberto para quando a Fase 6 for especificada)
 - Added principles: none
 - Added sections: none
 - Removed sections: none
 - Follow-up TODOs: nenhum
-- Motivação: instrução explícita do responsável pelo laboratório — o projeto deve ficar
-  estruturado desde já para usar o padrão OpenTelemetry (OTel).
+- Motivação: instrução explícita do responsável pelo laboratório — a ideia inicial é usar o
+  SigNoz para consumir os dados de telemetria.
 -->
 
 # orderslab Constitution
@@ -101,24 +101,28 @@ Até lá, o bloco Keycloak permanece desativado/comentado em `infra/docker-compo
 ponto de verdade para identidade, consistente com a proposta do laboratório de estudar
 segurança corporativa com IdP.
 
-### VI. Observabilidade como Requisito de Primeira Classe (Padrão OpenTelemetry)
+### VI. Observabilidade como Requisito de Primeira Classe (Padrão OpenTelemetry + SigNoz)
 Todo serviço MUST ser instrumentado desde sua criação ou alteração — não depois — cobrindo
 os três pilares da observabilidade: logs estruturados, métricas e traces distribuídos. O
 projeto MUST usar **OpenTelemetry (OTel)** como padrão único de instrumentação — SDK/agente
-de auto-instrumentação emitindo telemetria no formato OTLP — independentemente de qual
-backend (Prometheus/Grafana, Loki, Tempo/Jaeger etc.) vier a consumir esses dados. A escolha
-dos backends específicos e a topologia do OTel Collector MUST ser formalizadas quando a Fase
-6 for especificada, mas o padrão de instrumentação já é OpenTelemetry a partir desta emenda —
-não é mais uma decisão em aberto. Uma feature especificada via `/speckit-specify` que toque
-um serviço MUST considerar sua instrumentação (mesmo que mínima, ex.: logs estruturados via
-OTel) como parte do escopo da própria feature, não como um débito técnico aceitável para
-depois.
+de auto-instrumentação emitindo telemetria no formato OTLP — e **SigNoz** (self-hosted) como
+plataforma de observabilidade que consome essa telemetria, cobrindo os três pilares numa
+única ferramenta (SigNoz já embute seu próprio OTel Collector e usa ClickHouse como
+armazenamento, dispensando montar uma stack modular separada de Prometheus/Grafana/Loki/
+Tempo). A topologia exata de deploy do SigNoz (Docker Compose local vs. Helm chart em
+Kubernetes) MUST ser formalizada quando a Fase 6 for especificada, mas o par
+instrumentação+backend (OTel → SigNoz) já está decidido a partir desta emenda — não é mais
+uma decisão em aberto. Uma feature especificada via `/speckit-specify` que toque um serviço
+MUST considerar sua instrumentação (mesmo que mínima, ex.: logs estruturados via OTel) como
+parte do escopo da própria feature, não como um débito técnico aceitável para depois.
 
 **Rationale**: os agentes autônomos de SRE (Princípio VII) dependem inteiramente de
 telemetria de qualidade; observabilidade adicionada retroativamente é sistematicamente pior
 e mais cara do que observabilidade desde o design. OpenTelemetry, por ser um padrão aberto e
 vendor-neutral (CNCF), evita reinstrumentar o código toda vez que o backend de observabilidade
-mudar — reforçando a portabilidade exigida pelo Princípio IV.
+mudar — reforçando a portabilidade exigida pelo Princípio IV. SigNoz, por ser nativo em OTLP e
+unificar os três pilares numa única plataforma self-hosted, reduz a complexidade operacional
+de manter vários componentes (coletor, storage, UI) separados para um laboratório deste porte.
 
 ### VII. Governança de Remediação Autônoma (SRE)
 Quando os agentes autônomos de SRE previstos para a Fase 7 forem implementados, eles PODEM
@@ -196,4 +200,4 @@ respeitar a constitution vigente. Use [`README.md`](README.md) para instruções
 (como rodar, testar e implantar) e esta constitution para princípios de governança do
 laboratório.
 
-**Version**: 3.1.0 | **Ratified**: 2026-09-24 | **Last Amended**: 2026-09-24
+**Version**: 3.2.0 | **Ratified**: 2026-09-24 | **Last Amended**: 2026-09-24
