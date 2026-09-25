@@ -1,16 +1,21 @@
 services:
   # ==========================================
-  # BANCO DE DADOS (compartilhado pelas APIs: order-api, payment-api, invoice-api)
+  # BANCO DE DADOS (instância Postgres compartilhada, mas com um banco + usuário
+  # dedicado por serviço: order_db/order_user, payment_db/payment_user,
+  # invoice_db/invoice_user — provisionados automaticamente por
+  # infra/postgres-init/init-databases.sql na primeira inicialização do container)
   # ==========================================
   postgres-api:
     image: postgres:15-alpine
     container_name: postgres-api
     environment:
-      POSTGRES_DB: apisdb
-      POSTGRES_USER: apis_user
-      POSTGRES_PASSWORD: apis_password
+      POSTGRES_DB: postgres
+      POSTGRES_USER: apis_admin
+      POSTGRES_PASSWORD: apis_admin_password
     ports:
       - "5432:5432"
+    volumes:
+      - ./postgres-init/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro
     networks:
       - lab-network
 
@@ -102,9 +107,9 @@ services:
     ports:
       - "8081:8080"
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-api:5432/apisdb
-      - SPRING_DATASOURCE_USERNAME=apis_user
-      - SPRING_DATASOURCE_PASSWORD=apis_password
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-api:5432/order_db
+      - SPRING_DATASOURCE_USERNAME=order_user
+      - SPRING_DATASOURCE_PASSWORD=order_password
       - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:29092
     depends_on:
       - postgres-api
@@ -120,9 +125,9 @@ services:
     ports:
       - "8082:8080"
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-api:5432/apisdb
-      - SPRING_DATASOURCE_USERNAME=apis_user
-      - SPRING_DATASOURCE_PASSWORD=apis_password
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-api:5432/payment_db
+      - SPRING_DATASOURCE_USERNAME=payment_user
+      - SPRING_DATASOURCE_PASSWORD=payment_password
       - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:29092
     depends_on:
       - postgres-api
@@ -138,9 +143,9 @@ services:
     ports:
       - "8083:8080"
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-api:5432/apisdb
-      - SPRING_DATASOURCE_USERNAME=apis_user
-      - SPRING_DATASOURCE_PASSWORD=apis_password
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-api:5432/invoice_db
+      - SPRING_DATASOURCE_USERNAME=invoice_user
+      - SPRING_DATASOURCE_PASSWORD=invoice_password
       - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:29092
     depends_on:
       - postgres-api
