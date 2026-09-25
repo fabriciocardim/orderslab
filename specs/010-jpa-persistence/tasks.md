@@ -104,7 +104,7 @@ migração.
 - [X] T017 [P] Rodar `./mvnw clean verify` nos 3 serviços (com `postgres-api` no ar) —
       confirmar `BUILD SUCCESS` completo
 - [X] T018 [P] Atualizar o item 1.10 de `ROADMAP.md` como concluído
-- [ ] T019 Commitar as edições dos 3 serviços e `specs/010-jpa-persistence/` na branch
+- [X] T019 Commitar as edições dos 3 serviços e `specs/010-jpa-persistence/` na branch
       `feature/S001_incluirSDD`
 
 ---
