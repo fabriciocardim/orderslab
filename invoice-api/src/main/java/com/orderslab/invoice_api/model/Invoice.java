@@ -1,15 +1,24 @@
 package com.orderslab.invoice_api.model;
 
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
+@Entity
+@Table(name = "invoices")
 public class Invoice {
 
+    @Id
     private UUID id;
     private String orderId;
     private String paymentId;
     private BigDecimal amount;
+    @Enumerated(EnumType.STRING)
     private InvoiceStatus status;
     private Instant createdAt;
     private Instant updatedAt;

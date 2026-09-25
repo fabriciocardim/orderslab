@@ -6,24 +6,25 @@ import com.orderslab.order_api.exception.InvalidStatusTransitionException;
 import com.orderslab.order_api.exception.OrderNotFoundException;
 import com.orderslab.order_api.model.Order;
 import com.orderslab.order_api.model.OrderStatus;
+import com.orderslab.order_api.repository.OrderRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Service
 public class OrderService {
 
-    // Armazenamento em memória só para o exercício.
-    // Depois pode virar um repository (JPA) apontando pro banco da Order API.
-    private final Map<UUID, Order> orders = new ConcurrentHashMap<>();
+    private final OrderRepository orderRepository;
+
+    public OrderService(OrderRepository orderRepository) {
+        this.orderRepository = orderRepository;
+    }
 
     public OrderResponse create(OrderRequest request) {
         Order order = new Order(request.getCustomerId(), request.getAmount());
-        orders.put(order.getId(), order);
+        orderRepository.save(order);
         return toResponse(order);
     }
 
@@ -33,6 +34,7 @@ public class OrderService {
             throw new InvalidStatusTransitionException(order.getStatus(), "ser confirmado");
         }
         order.setStatus(OrderStatus.CONFIRMED);
+        orderRepository.save(order);
         return toResponse(order);
     }
 
@@ -42,6 +44,7 @@ public class OrderService {
             throw new InvalidStatusTransitionException(order.getStatus(), "ser cancelado");
         }
         order.setStatus(OrderStatus.CANCELLED);
+        orderRepository.save(order);
         return toResponse(order);
     }
 
@@ -50,17 +53,14 @@ public class OrderService {
     }
 
     public List<OrderResponse> findAll() {
-        return orders.values().stream()
+        return orderRepository.findAll().stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
 
     private Order findOrThrow(UUID orderId) {
-        Order order = orders.get(orderId);
-        if (order == null) {
-            throw new OrderNotFoundException(orderId);
-        }
-        return order;
+        return orderRepository.findById(orderId)
+                .orElseThrow(() -> new OrderNotFoundException(orderId));
     }
 
     private OrderResponse toResponse(Order order) {

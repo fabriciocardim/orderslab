@@ -1,14 +1,23 @@
 package com.orderslab.payment_api.model;
 
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
+@Entity
+@Table(name = "payments")
 public class Payment {
 
+    @Id
     private UUID id;
     private String orderId;
     private BigDecimal amount;
+    @Enumerated(EnumType.STRING)
     private PaymentStatus status;
     private Instant createdAt;
     private Instant updatedAt;

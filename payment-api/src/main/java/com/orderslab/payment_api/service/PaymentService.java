@@ -6,24 +6,25 @@ import com.orderslab.payment_api.exception.InvalidStatusTransitionException;
 import com.orderslab.payment_api.exception.PaymentNotFoundException;
 import com.orderslab.payment_api.model.Payment;
 import com.orderslab.payment_api.model.PaymentStatus;
+import com.orderslab.payment_api.repository.PaymentRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Service
 public class PaymentService {
 
-    // Armazenamento em memória só para o exercício.
-    // Depois pode virar um repository (JPA) apontando pro banco da Payments API.
-    private final Map<UUID, Payment> payments = new ConcurrentHashMap<>();
+    private final PaymentRepository paymentRepository;
+
+    public PaymentService(PaymentRepository paymentRepository) {
+        this.paymentRepository = paymentRepository;
+    }
 
     public PaymentResponse reserve(PaymentReservationRequest request) {
         Payment payment = new Payment(request.getOrderId(), request.getAmount());
-        payments.put(payment.getId(), payment);
+        paymentRepository.save(payment);
         return toResponse(payment);
     }
 
@@ -33,6 +34,7 @@ public class PaymentService {
             throw new InvalidStatusTransitionException(payment.getStatus(), "ser confirmado");
         }
         payment.setStatus(PaymentStatus.CONFIRMED);
+        paymentRepository.save(payment);
         return toResponse(payment);
     }
 
@@ -42,6 +44,7 @@ public class PaymentService {
             throw new InvalidStatusTransitionException(payment.getStatus(), "ser cancelado");
         }
         payment.setStatus(PaymentStatus.CANCELLED);
+        paymentRepository.save(payment);
         return toResponse(payment);
     }
 
@@ -50,17 +53,14 @@ public class PaymentService {
     }
 
     public List<PaymentResponse> findAll() {
-        return payments.values().stream()
+        return paymentRepository.findAll().stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
 
     private Payment findOrThrow(UUID paymentId) {
-        Payment payment = payments.get(paymentId);
-        if (payment == null) {
-            throw new PaymentNotFoundException(paymentId);
-        }
-        return payment;
+        return paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new PaymentNotFoundException(paymentId));
     }
 
     private PaymentResponse toResponse(Payment payment) {

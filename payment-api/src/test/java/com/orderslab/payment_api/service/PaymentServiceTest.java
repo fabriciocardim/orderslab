@@ -2,26 +2,55 @@ package com.orderslab.payment_api.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 
 import com.orderslab.payment_api.dto.PaymentReservationRequest;
 import com.orderslab.payment_api.dto.PaymentResponse;
 import com.orderslab.payment_api.exception.InvalidStatusTransitionException;
 import com.orderslab.payment_api.exception.PaymentNotFoundException;
+import com.orderslab.payment_api.model.Payment;
 import com.orderslab.payment_api.model.PaymentStatus;
+import com.orderslab.payment_api.repository.PaymentRepository;
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
+@ExtendWith(MockitoExtension.class)
 class PaymentServiceTest {
 
     private static final String ORDER_ID = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
 
+    @Mock
+    private PaymentRepository paymentRepository;
+
+    @InjectMocks
     private PaymentService paymentService;
+
+    private final Map<UUID, Payment> savedPayments = new HashMap<>();
 
     @BeforeEach
     void setUp() {
-        paymentService = new PaymentService();
+        savedPayments.clear();
+        lenient().when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> {
+            Payment payment = invocation.getArgument(0);
+            savedPayments.put(payment.getId(), payment);
+            return payment;
+        });
+        lenient().when(paymentRepository.findById(any(UUID.class))).thenAnswer(invocation -> {
+            UUID id = invocation.getArgument(0);
+            return Optional.ofNullable(savedPayments.get(id));
+        });
+        lenient().when(paymentRepository.findAll()).thenAnswer(invocation -> new ArrayList<>(savedPayments.values()));
     }
 
     private PaymentResponse reservePayment() {

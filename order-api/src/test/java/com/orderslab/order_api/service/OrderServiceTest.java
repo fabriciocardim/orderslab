@@ -2,24 +2,53 @@ package com.orderslab.order_api.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 
 import com.orderslab.order_api.dto.OrderRequest;
 import com.orderslab.order_api.dto.OrderResponse;
 import com.orderslab.order_api.exception.InvalidStatusTransitionException;
 import com.orderslab.order_api.exception.OrderNotFoundException;
+import com.orderslab.order_api.model.Order;
 import com.orderslab.order_api.model.OrderStatus;
+import com.orderslab.order_api.repository.OrderRepository;
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
+@ExtendWith(MockitoExtension.class)
 class OrderServiceTest {
 
+    @Mock
+    private OrderRepository orderRepository;
+
+    @InjectMocks
     private OrderService orderService;
+
+    private final Map<UUID, Order> savedOrders = new HashMap<>();
 
     @BeforeEach
     void setUp() {
-        orderService = new OrderService();
+        savedOrders.clear();
+        lenient().when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> {
+            Order order = invocation.getArgument(0);
+            savedOrders.put(order.getId(), order);
+            return order;
+        });
+        lenient().when(orderRepository.findById(any(UUID.class))).thenAnswer(invocation -> {
+            UUID id = invocation.getArgument(0);
+            return Optional.ofNullable(savedOrders.get(id));
+        });
+        lenient().when(orderRepository.findAll()).thenAnswer(invocation -> new ArrayList<>(savedOrders.values()));
     }
 
     private OrderResponse createOrder() {

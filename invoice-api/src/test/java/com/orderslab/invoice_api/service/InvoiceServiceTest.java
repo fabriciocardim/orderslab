@@ -2,27 +2,56 @@ package com.orderslab.invoice_api.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 
 import com.orderslab.invoice_api.dto.InvoiceRequest;
 import com.orderslab.invoice_api.dto.InvoiceResponse;
 import com.orderslab.invoice_api.exception.InvalidStatusTransitionException;
 import com.orderslab.invoice_api.exception.InvoiceNotFoundException;
+import com.orderslab.invoice_api.model.Invoice;
 import com.orderslab.invoice_api.model.InvoiceStatus;
+import com.orderslab.invoice_api.repository.InvoiceRepository;
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
+@ExtendWith(MockitoExtension.class)
 class InvoiceServiceTest {
 
     private static final String ORDER_ID = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
     private static final String PAYMENT_ID = "a8541a91-1fcc-4b2e-9fdc-aa23f090043a";
 
+    @Mock
+    private InvoiceRepository invoiceRepository;
+
+    @InjectMocks
     private InvoiceService invoiceService;
+
+    private final Map<UUID, Invoice> savedInvoices = new HashMap<>();
 
     @BeforeEach
     void setUp() {
-        invoiceService = new InvoiceService();
+        savedInvoices.clear();
+        lenient().when(invoiceRepository.save(any(Invoice.class))).thenAnswer(invocation -> {
+            Invoice invoice = invocation.getArgument(0);
+            savedInvoices.put(invoice.getId(), invoice);
+            return invoice;
+        });
+        lenient().when(invoiceRepository.findById(any(UUID.class))).thenAnswer(invocation -> {
+            UUID id = invocation.getArgument(0);
+            return Optional.ofNullable(savedInvoices.get(id));
+        });
+        lenient().when(invoiceRepository.findAll()).thenAnswer(invocation -> new ArrayList<>(savedInvoices.values()));
     }
 
     private InvoiceResponse createInvoice() {
