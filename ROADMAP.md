@@ -54,8 +54,19 @@ antes de mexer em storage) → 1.9 → 1.10 → 1.11 → 1.12.
 ## Fases 2–7 — epics de alto nível
 
 ### Fase 2 — Kafka assíncrono
-- **E2.1** Convenção de evento/tópico — nomeação, schema de payload, correlação (`orderId`
-  em todo evento downstream). Decisão documentada, não lib compartilhada (I, II).
+- **E2.1** ✅ Convenção de evento/tópico — **Concluído (2026-09-26)** — decisão documentada:
+  1 tópico por tipo de evento (`<domínio>.<evento>`, minúsculas — ex.: `order.created`,
+  `payment.reserved`, `invoice.issued`); envelope obrigatório em todo evento
+  (`eventId`/`eventType`/`eventVersion`/`occurredAt`/`orderId`), com `orderId` exigido mesmo
+  nos eventos de `payment-api`/`invoice-api` que não são diretamente sobre um pedido. Achado
+  real: `spring-kafka:4.1.1` traz **duas famílias de serializer JSON** — a clássica
+  (`JsonSerializer`/`JsonDeserializer`, Jackson 2) e a nova `JacksonJsonSerializer`/
+  `JacksonJsonDeserializer` (Jackson 3, mesmo padrão de divisão já visto no item 1.7);
+  escolhida a família Jackson 3, consistente com o resto do projeto. Zero dependência de
+  código compartilhada entre os 3 serviços (Princípio I) — nenhum `pom.xml`/código de
+  produção alterado por esta decisão. Ver
+  [specs/013-kafka-event-convention](specs/013-kafka-event-convention/contracts/event-contract.md)
+  para o contrato completo, consumido diretamente por E2.2. (I, II).
 - **E2.2** `order-api` produtor — publicar `OrderCreated`/`OrderConfirmed`/`OrderCancelled`
   após cada transição persistida; considerar outbox pattern para não violar Princípio II (II).
 - **E2.3** `payment-api` consumidor+produtor — `@KafkaListener` em `OrderCreated`, publica
