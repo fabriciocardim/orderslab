@@ -7,6 +7,8 @@ import com.orderslab.order_api.exception.OrderNotFoundException;
 import com.orderslab.order_api.model.Order;
 import com.orderslab.order_api.model.OrderStatus;
 import com.orderslab.order_api.repository.OrderRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -15,6 +17,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class OrderService {
+
+    private static final Logger log = LoggerFactory.getLogger(OrderService.class);
 
     private final OrderRepository orderRepository;
 
@@ -25,6 +29,10 @@ public class OrderService {
     public OrderResponse create(OrderRequest request) {
         Order order = new Order(request.getCustomerId(), request.getAmount());
         orderRepository.save(order);
+        log.atInfo()
+                .addKeyValue("orderId", order.getId())
+                .addKeyValue("status", order.getStatus())
+                .log("Order created");
         return toResponse(order);
     }
 
@@ -35,6 +43,10 @@ public class OrderService {
         }
         order.setStatus(OrderStatus.CONFIRMED);
         orderRepository.save(order);
+        log.atInfo()
+                .addKeyValue("orderId", order.getId())
+                .addKeyValue("status", order.getStatus())
+                .log("Order confirmed");
         return toResponse(order);
     }
 
@@ -45,6 +57,10 @@ public class OrderService {
         }
         order.setStatus(OrderStatus.CANCELLED);
         orderRepository.save(order);
+        log.atInfo()
+                .addKeyValue("orderId", order.getId())
+                .addKeyValue("status", order.getStatus())
+                .log("Order cancelled");
         return toResponse(order);
     }
 

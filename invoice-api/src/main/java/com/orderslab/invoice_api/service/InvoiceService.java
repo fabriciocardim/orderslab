@@ -7,6 +7,8 @@ import com.orderslab.invoice_api.exception.InvoiceNotFoundException;
 import com.orderslab.invoice_api.model.Invoice;
 import com.orderslab.invoice_api.model.InvoiceStatus;
 import com.orderslab.invoice_api.repository.InvoiceRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -15,6 +17,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class InvoiceService {
+
+    private static final Logger log = LoggerFactory.getLogger(InvoiceService.class);
 
     private final InvoiceRepository invoiceRepository;
 
@@ -25,6 +29,10 @@ public class InvoiceService {
     public InvoiceResponse create(InvoiceRequest request) {
         Invoice invoice = new Invoice(request.getOrderId(), request.getPaymentId(), request.getAmount());
         invoiceRepository.save(invoice);
+        log.atInfo()
+                .addKeyValue("invoiceId", invoice.getId())
+                .addKeyValue("status", invoice.getStatus())
+                .log("Invoice created");
         return toResponse(invoice);
     }
 
@@ -35,6 +43,10 @@ public class InvoiceService {
         }
         invoice.setStatus(InvoiceStatus.ISSUED);
         invoiceRepository.save(invoice);
+        log.atInfo()
+                .addKeyValue("invoiceId", invoice.getId())
+                .addKeyValue("status", invoice.getStatus())
+                .log("Invoice issued");
         return toResponse(invoice);
     }
 
@@ -45,6 +57,10 @@ public class InvoiceService {
         }
         invoice.setStatus(InvoiceStatus.CANCELLED);
         invoiceRepository.save(invoice);
+        log.atInfo()
+                .addKeyValue("invoiceId", invoice.getId())
+                .addKeyValue("status", invoice.getStatus())
+                .log("Invoice cancelled");
         return toResponse(invoice);
     }
 
