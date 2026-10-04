@@ -94,8 +94,20 @@ antes de mexer em storage) → 1.9 → 1.10 → 1.11 → 1.12.
   publicar, Postgres parado sem perda, `traceId` no consumo. Nenhuma dependência nova;
   `order-api`/`invoice-api` intocados. 52 testes, PMD limpo. Ver
   [specs/015-payment-kafka-consumer-producer](specs/015-payment-kafka-consumer-producer/research.md). (II).
-- **E2.4** `invoice-api` consumidor+produtor — `@KafkaListener` em `PaymentReserved`, publica
-  `InvoiceIssued`/`InvoiceFailed` (II).
+- **E2.4** ✅ `invoice-api` consumidor+produtor — **Concluído (2026-10-04)** — consome
+  `PaymentReserved` (`payment.reserved`; `payment.failed` não é assinado, então pagamento que falhou
+  não gera nota) e publica `InvoiceIssued`/`InvoiceFailed` (`invoice.issued`/`invoice.failed`,
+  3 partições, chave `orderId`). Regra simples e determinística: valor **estritamente acima de
+  500.00** (`invoice.issuance.limit`) falha com `AMOUNT_ABOVE_ISSUANCE_LIMIT`, sem imposto real; o
+  limite é menor que o do pagamento (1000.00) de propósito, para exercitar a falha da nota ponta a
+  ponta. Mesmo desenho validado no E2.3, **copiado** (terceira cópia do outbox, sem código
+  compartilhado — Princípio I): uma transação por mensagem (dedup + nota + outbox), idempotência por
+  constraints em `invoices`, retry ilimitado para falha transitória, ilegível logado e pulado. Novo
+  status `FAILED`; contrato HTTP inalterado. Validado com os três serviços e Kafka/Postgres reais:
+  cadeia completa (10.50/500 emitida, 750 pagamento ok + nota falha, 1500 sem nota), backlog lido,
+  reentrega, ilegíveis, broker parado, `kill -9`, Postgres parado, `traceId` encadeado. Nenhuma
+  dependência nova; `order-api`/`payment-api` intocados. 52 testes, PMD limpo. Ver
+  [specs/016-invoice-kafka-consumer-producer](specs/016-invoice-kafka-consumer-producer/research.md). (II).
 - **E2.5** Estratégia de erro de consumo — retry + dead-letter topic por serviço (II).
 - **E2.6** Testes de mensageria — Testcontainers Kafka por serviço (II).
 

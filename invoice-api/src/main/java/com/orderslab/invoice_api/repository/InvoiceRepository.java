@@ -5,4 +5,8 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface InvoiceRepository extends JpaRepository<Invoice, UUID> {
+
+    boolean existsBySourceEventId(UUID sourceEventId);
+
+    boolean existsByOrderIdAndSourceEventIdIsNotNull(String orderId);
 }
