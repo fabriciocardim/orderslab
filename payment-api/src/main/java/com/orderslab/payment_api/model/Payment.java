@@ -21,6 +21,7 @@ public class Payment {
     private PaymentStatus status;
     private Instant createdAt;
     private Instant updatedAt;
+    private UUID sourceEventId;
 
     public Payment() {
     }
@@ -32,6 +33,17 @@ public class Payment {
         this.status = PaymentStatus.RESERVED;
         this.createdAt = Instant.now();
         this.updatedAt = Instant.now();
+    }
+
+    /** Pagamento decidido a partir de um evento OrderCreated (RESERVED ou FAILED). */
+    public static Payment fromEvent(String orderId, BigDecimal amount, UUID sourceEventId, PaymentStatus status) {
+        if (status != PaymentStatus.RESERVED && status != PaymentStatus.FAILED) {
+            throw new IllegalArgumentException("Pagamento originado de evento só pode nascer RESERVED ou FAILED: " + status);
+        }
+        Payment payment = new Payment(orderId, amount);
+        payment.sourceEventId = sourceEventId;
+        payment.status = status;
+        return payment;
     }
 
     public UUID getId() {
@@ -61,5 +73,9 @@ public class Payment {
 
     public Instant getUpdatedAt() {
         return updatedAt;
+    }
+
+    public UUID getSourceEventId() {
+        return sourceEventId;
     }
 }

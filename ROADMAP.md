@@ -78,8 +78,22 @@ antes de mexer em storage) → 1.9 → 1.10 → 1.11 → 1.12.
   publicar, confirm×cancel concorrente, tópicos sem header `__TypeId__`. Nenhuma dependência
   nova; `payment-api`/`invoice-api` intocados. 42 testes, PMD limpo. Ver
   [specs/014-order-kafka-producer](specs/014-order-kafka-producer/research.md). (II).
-- **E2.3** `payment-api` consumidor+produtor — `@KafkaListener` em `OrderCreated`, publica
-  `PaymentReserved`/`PaymentFailed` (II).
+- **E2.3** ✅ `payment-api` consumidor+produtor — **Concluído (2026-10-04)** — consome
+  `OrderCreated` (`order.created`) e publica `PaymentReserved`/`PaymentFailed`
+  (`payment.reserved`/`payment.failed`, 3 partições, chave `orderId`). Regra de decisão simples e
+  determinística: valor **estritamente acima de 1000.00** (`payment.approval.limit`) falha com
+  `AMOUNT_LIMIT_EXCEEDED`; caso contrário reserva. O processamento de cada mensagem é **uma única
+  transação** (dedup + pagamento + evento no outbox próprio, mesmo desenho do E2.2 copiado — sem
+  código compartilhado, Princípio I). Idempotência por constraints em `payments`
+  (`source_event_id` único e índice parcial único em `order_id`), sem tabela extra; pagamento
+  novo valor `FAILED`, contrato HTTP inalterado. Achado: o error handler **padrão** do
+  spring-kafka tenta 10× sem espera e **descarta** o registro (perderia decisões) — trocado por
+  retry ilimitado com espera de 1 s para falha transitória; JSON ilegível é logado e pulado
+  (retry limitado/DLT é o E2.5). Validado contra Kafka/Postgres reais: backlog lido
+  (`earliest`), reentrega sem duplicar, ilegíveis, broker parado, `kill -9` entre persistir e
+  publicar, Postgres parado sem perda, `traceId` no consumo. Nenhuma dependência nova;
+  `order-api`/`invoice-api` intocados. 52 testes, PMD limpo. Ver
+  [specs/015-payment-kafka-consumer-producer](specs/015-payment-kafka-consumer-producer/research.md). (II).
 - **E2.4** `invoice-api` consumidor+produtor — `@KafkaListener` em `PaymentReserved`, publica
   `InvoiceIssued`/`InvoiceFailed` (II).
 - **E2.5** Estratégia de erro de consumo — retry + dead-letter topic por serviço (II).
