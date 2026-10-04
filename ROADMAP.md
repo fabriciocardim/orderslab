@@ -67,8 +67,17 @@ antes de mexer em storage) → 1.9 → 1.10 → 1.11 → 1.12.
   produção alterado por esta decisão. Ver
   [specs/013-kafka-event-convention](specs/013-kafka-event-convention/contracts/event-contract.md)
   para o contrato completo, consumido diretamente por E2.2. (I, II).
-- **E2.2** `order-api` produtor — publicar `OrderCreated`/`OrderConfirmed`/`OrderCancelled`
-  após cada transição persistida; considerar outbox pattern para não violar Princípio II (II).
+- **E2.2** ✅ `order-api` produtor — **Concluído (2026-10-04)** — `OrderCreated`/
+  `OrderConfirmed`/`OrderCancelled` publicados em `order.created`/`order.confirmed`/
+  `order.cancelled` (3 partições, chave `orderId`) via **outbox transacional** (`outbox_events`,
+  Flyway `V2`): o evento é gravado na mesma transação da transição e um relay `@Scheduled`
+  publica com ack e remove; entrega pelo menos uma vez com `eventId` estável. `confirm`/
+  `cancel` leem o pedido com `FOR UPDATE` (Hibernate 7 emite `for no key update`), então
+  transições concorrentes viram 200+409 com um único evento final, sem mudar o contrato HTTP.
+  Validado contra Kafka/Postgres reais: broker parado/religado, `kill -9` entre persistir e
+  publicar, confirm×cancel concorrente, tópicos sem header `__TypeId__`. Nenhuma dependência
+  nova; `payment-api`/`invoice-api` intocados. 42 testes, PMD limpo. Ver
+  [specs/014-order-kafka-producer](specs/014-order-kafka-producer/research.md). (II).
 - **E2.3** `payment-api` consumidor+produtor — `@KafkaListener` em `OrderCreated`, publica
   `PaymentReserved`/`PaymentFailed` (II).
 - **E2.4** `invoice-api` consumidor+produtor — `@KafkaListener` em `PaymentReserved`, publica

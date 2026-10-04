@@ -2,14 +2,20 @@ package com.orderslab.order_api.service;
 
 import com.orderslab.order_api.dto.OrderRequest;
 import com.orderslab.order_api.dto.OrderResponse;
+import com.orderslab.order_api.config.KafkaTopicsConfig;
+import com.orderslab.order_api.event.OrderCancelled;
+import com.orderslab.order_api.event.OrderConfirmed;
+import com.orderslab.order_api.event.OrderCreated;
 import com.orderslab.order_api.exception.InvalidStatusTransitionException;
 import com.orderslab.order_api.exception.OrderNotFoundException;
 import com.orderslab.order_api.model.Order;
 import com.orderslab.order_api.model.OrderStatus;
+import com.orderslab.order_api.outbox.OutboxWriter;
 import com.orderslab.order_api.repository.OrderRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
@@ -21,14 +27,20 @@ public class OrderService {
     private static final Logger log = LoggerFactory.getLogger(OrderService.class);
 
     private final OrderRepository orderRepository;
+    private final OutboxWriter outboxWriter;
 
-    public OrderService(OrderRepository orderRepository) {
+    public OrderService(OrderRepository orderRepository, OutboxWriter outboxWriter) {
         this.orderRepository = orderRepository;
+        this.outboxWriter = outboxWriter;
     }
 
+    @Transactional
     public OrderResponse create(OrderRequest request) {
         Order order = new Order(request.getCustomerId(), request.getAmount());
         orderRepository.save(order);
+        outboxWriter.enqueue(
+                OrderCreated.of(order.getId(), order.getCustomerId(), order.getAmount(), order.getCreatedAt()),
+                KafkaTopicsConfig.ORDER_CREATED);
         log.atInfo()
                 .addKeyValue("orderId", order.getId())
                 .addKeyValue("status", order.getStatus())
@@ -36,13 +48,16 @@ public class OrderService {
         return toResponse(order);
     }
 
+    @Transactional
     public OrderResponse confirm(UUID orderId) {
-        Order order = findOrThrow(orderId);
+        Order order = findForUpdateOrThrow(orderId);
         if (order.getStatus() != OrderStatus.PENDING) {
             throw new InvalidStatusTransitionException(order.getStatus(), "ser confirmado");
         }
         order.setStatus(OrderStatus.CONFIRMED);
         orderRepository.save(order);
+        outboxWriter.enqueue(OrderConfirmed.of(order.getId(), order.getUpdatedAt()),
+                KafkaTopicsConfig.ORDER_CONFIRMED);
         log.atInfo()
                 .addKeyValue("orderId", order.getId())
                 .addKeyValue("status", order.getStatus())
@@ -50,13 +65,16 @@ public class OrderService {
         return toResponse(order);
     }
 
+    @Transactional
     public OrderResponse cancel(UUID orderId) {
-        Order order = findOrThrow(orderId);
+        Order order = findForUpdateOrThrow(orderId);
         if (order.getStatus() != OrderStatus.PENDING) {
             throw new InvalidStatusTransitionException(order.getStatus(), "ser cancelado");
         }
         order.setStatus(OrderStatus.CANCELLED);
         orderRepository.save(order);
+        outboxWriter.enqueue(OrderCancelled.of(order.getId(), order.getUpdatedAt()),
+                KafkaTopicsConfig.ORDER_CANCELLED);
         log.atInfo()
                 .addKeyValue("orderId", order.getId())
                 .addKeyValue("status", order.getStatus())
@@ -76,6 +94,11 @@ public class OrderService {
 
     private Order findOrThrow(UUID orderId) {
         return orderRepository.findById(orderId)
+                .orElseThrow(() -> new OrderNotFoundException(orderId));
+    }
+
+    private Order findForUpdateOrThrow(UUID orderId) {
+        return orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new OrderNotFoundException(orderId));
     }
 

@@ -11,6 +11,12 @@ Nenhum código de produtor/consumidor é implementado por esta feature — só o
 projeto desde o item 1.7. **Nunca** as classes clássicas `JsonSerializer`/`JsonDeserializer`
 (Jackson 2). Ver `research.md` Decisão 1.
 
+> **Esclarecimento (E2.2):** no `order-api` o payload sai do outbox já serializado (Jackson 3)
+> e é publicado como texto com `StringSerializer`. O formato de fio é idêntico ao do
+> `JacksonJsonSerializer` e **nenhum header `__TypeId__` é emitido**. Consumidores devem ler
+> o JSON sem depender de header de tipo. Ver
+> [specs/014-order-kafka-producer](../../014-order-kafka-producer/contracts/order-events.md).
+
 ## Convenção de nome de tópico
 
 `<domínio>.<evento>`, tudo minúsculas, um tópico por tipo de evento:
