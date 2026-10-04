@@ -53,7 +53,7 @@ antes de mexer em storage) → 1.9 → 1.10 → 1.11 → 1.12.
 
 ## Fases 2–7 — epics de alto nível
 
-### Fase 2 — Kafka assíncrono
+### Fase 2 ✅ CONCLUÍDA — Kafka assíncrono
 - **E2.1** ✅ Convenção de evento/tópico — **Concluído (2026-09-26)** — decisão documentada:
   1 tópico por tipo de evento (`<domínio>.<evento>`, minúsculas — ex.: `order.created`,
   `payment.reserved`, `invoice.issued`); envelope obrigatório em todo evento
@@ -122,7 +122,25 @@ antes de mexer em storage) → 1.9 → 1.10 → 1.11 → 1.12.
   duplicar, convenção registrada no contrato do E2.1. 57 testes por serviço, PMD limpo; `order-api` e `pom.xml`
   intocados. Parcial: "envio ao DLT falha" validado só em teste de unidade (sem Kafka nada chega ao serviço). Ver
   [specs/017-consumer-retry-dlt](specs/017-consumer-retry-dlt/research.md). (II).
-- **E2.6** Testes de mensageria — Testcontainers Kafka por serviço (II).
+- **E2.6** ✅ Testes de mensageria — **Concluído (2026-10-04)** — cada serviço ganhou uma suíte própria
+  (`*MessagingTest`, sem código de teste compartilhado) que roda dentro de `./mvnw test` contra **Kafka
+  (`apache/kafka:4.2.0`, a imagem do compose) e Postgres reais** subidos por Testcontainers (única mudança de
+  `pom.xml`: `testcontainers-kafka`, escopo `test`, versão do BOM). `order-api`: 1 evento por operação no tópico
+  certo, chave = `orderId`, sem `__TypeId__`, envelope, 3 partições, ordem criação→confirmação e **broker pausado**
+  (HTTP normal, outbox retém, entrega ao retomar). `payment-api`/`invoice-api`: `OrderCreated`/`PaymentReserved` reais
+  viram decisão + evento de saída (regra do limite, incluindo o valor exato), reentrega não duplica, mensagens
+  inválidas vão ao DLT com chave/valor idênticos e headers `kafka_dlt-*` **sem retry** (provado por retry de teste de
+  60 s) e a válida seguinte é processada. Validado: **10 execuções consecutivas verdes por serviço**, mutações
+  (chave/tópico errados) detectadas com mensagem clara, `verify` e PMD limpos, nada em `src/main`. Achados: a
+  entrega é pelo menos uma vez também nos testes (cópias com o mesmo `eventId` — passaram a contar eventos
+  distintos); `max.block.ms=5000` de produção estoura na partida a frio do broker (o `publish` do teste insiste até
+  um prazo); numa máquina de 8 GB com swap cheio o Kafka de teste falhou em subir — heap limitado e timeout de subida
+  de 3 min. Ver [specs/018-messaging-testcontainers](specs/018-messaging-testcontainers/research.md). (II).
+
+**Fase 2 ✅ CONCLUÍDA (2026-10-04)** — E2.1–E2.6: convenção de evento/tópico, `order-api` produtor (outbox),
+`payment-api` e `invoice-api` consumidores+produtores, retry limitado + DLT e testes de mensageria com Kafka real.
+A cadeia `order-api → payment-api → invoice-api` funciona de ponta a ponta de forma assíncrona. Próximo passo:
+Fase 3 (Apache Airflow).
 
 ### Fase 3 — Apache Airflow
 - **E3.1** Caso de uso do DAG (ex.: cancelar pedidos `PENDING` travados, reconciliação diária)
