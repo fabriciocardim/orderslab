@@ -55,7 +55,7 @@ class PaymentReservedListenerTest {
     }
 
     @Test
-    void shouldDiscardUnreadableOrIncompleteMessagesWithoutThrowing() {
+    void shouldRejectUnreadableOrIncompleteMessagesAsInvalidWithoutCallingTheProcessor() {
         String ok = UUID.randomUUID().toString();
         String[] bad = {
             "lixo-nao-json",
@@ -72,7 +72,9 @@ class PaymentReservedListenerTest {
         };
 
         for (String value : bad) {
-            listener().onMessage(record(value));
+            assertThatThrownBy(() -> listener().onMessage(record(value)))
+                    .as("valor: %s", value)
+                    .isInstanceOf(InvalidMessageException.class);
         }
 
         verify(processor, never()).process(any());

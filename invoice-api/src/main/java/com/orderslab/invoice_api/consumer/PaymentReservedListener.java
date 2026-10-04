@@ -16,7 +16,6 @@ import tools.jackson.databind.json.JsonMapper;
 public class PaymentReservedListener {
 
     private static final Logger log = LoggerFactory.getLogger(PaymentReservedListener.class);
-    private static final int MAX_LOGGED_VALUE = 200;
 
     private final JsonMapper jsonMapper;
     private final PaymentReservedProcessor processor;
@@ -29,9 +28,6 @@ public class PaymentReservedListener {
     @KafkaListener(topics = KafkaTopicsConfig.PAYMENT_RESERVED)
     public void onMessage(ConsumerRecord<String, String> record) {
         PaymentReservedMessage message = parse(record);
-        if (message == null) {
-            return;
-        }
         log.atInfo()
                 .addKeyValue("orderId", message.orderId())
                 .addKeyValue("eventId", message.eventId())
@@ -43,35 +39,18 @@ public class PaymentReservedListener {
         processor.process(message);
     }
 
-    /** Mensagem ilegível ou incompleta é erro permanente: loga e devolve null (descarte), sem travar a partição. */
+    /** Conteúdo inválido é falha permanente: lança InvalidMessageException (vai direto ao DLT, sem retry). */
     private PaymentReservedMessage parse(ConsumerRecord<String, String> record) {
-        String value = record.value();
         try {
-            PaymentReservedMessage message = jsonMapper.readValue(value, PaymentReservedMessage.class);
+            PaymentReservedMessage message = jsonMapper.readValue(record.value(), PaymentReservedMessage.class);
             if (message == null || message.eventId() == null || message.orderId() == null
                     || message.paymentId() == null
                     || message.amount() == null || message.amount().compareTo(BigDecimal.ZERO) <= 0) {
-                discard(record, "missing or invalid required field", null);
-                return null;
+                throw new InvalidMessageException("missing or invalid required field");
             }
             return message;
         } catch (JacksonException | IllegalArgumentException e) {
-            discard(record, "unreadable JSON", e);
-            return null;
+            throw new InvalidMessageException("unreadable JSON", e);
         }
-    }
-
-    private void discard(ConsumerRecord<String, String> record, String reason, Exception cause) {
-        String value = record.value();
-        String excerpt = value == null ? null : value.substring(0, Math.min(value.length(), MAX_LOGGED_VALUE));
-        var builder = log.atError()
-                .addKeyValue("topic", record.topic())
-                .addKeyValue("partition", record.partition())
-                .addKeyValue("offset", record.offset())
-                .addKeyValue("valueExcerpt", excerpt);
-        if (cause != null) {
-            builder = builder.setCause(cause);
-        }
-        builder.log("PaymentReserved discarded: " + reason);
     }
 }

@@ -80,6 +80,9 @@ Confiar só em offset commit — rejeitado: entrega é pelo menos uma vez.
 
 ## Decisão 4: Política de erro do consumo — nunca perder transitório, não travar em venenoso
 
+> **Substituída pelo E2.5** ([spec 017](../017-consumer-retry-dlt/spec.md)): o retry sem limite e o log+descarte aqui
+> descritos eram a política interina; hoje o consumo usa retry limitado + DLT `<tópico>.dlt`.
+
 **Decision**: registrar um bean `CommonErrorHandler` (`DefaultErrorHandler`) que o Boot aplica
 sozinho ao container. Dois tratamentos:
 - **Transitório** (banco indisponível, erro ao gravar): retry **ilimitado** com espera fixa de 1 s

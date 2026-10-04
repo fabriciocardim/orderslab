@@ -8,6 +8,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 @Configuration
 @EnableScheduling
-@EnableConfigurationProperties({OutboxProperties.class, PaymentProperties.class})
+@EnableConfigurationProperties({OutboxProperties.class, PaymentProperties.class, ConsumerRetryProperties.class})
 public class SchedulingConfig {
 }

@@ -108,7 +108,20 @@ antes de mexer em storage) → 1.9 → 1.10 → 1.11 → 1.12.
   reentrega, ilegíveis, broker parado, `kill -9`, Postgres parado, `traceId` encadeado. Nenhuma
   dependência nova; `order-api`/`payment-api` intocados. 52 testes, PMD limpo. Ver
   [specs/016-invoice-kafka-consumer-producer](specs/016-invoice-kafka-consumer-producer/research.md). (II).
-- **E2.5** Estratégia de erro de consumo — retry + dead-letter topic por serviço (II).
+- **E2.5** ✅ Estratégia de erro de consumo — **Concluído (2026-10-04)** — `payment-api` (`order.created`) e
+  `invoice-api` (`payment.reserved`), cada um com a sua cópia (Princípio I): `DefaultErrorHandler` com
+  **backoff exponencial limitado** (padrão 4 retentativas, 1 s ×2 até 10 s; `consumer.retry.*`) e
+  `DeadLetterPublishingRecoverer` para o **DLT `<tópico>.dlt`** (`order.created.dlt`,
+  `payment.reserved.dlt`; 3 partições, chave preservada). Conteúdo inválido (`InvalidMessageException`) vai
+  **direto** ao DLT sem retry (antes: log e descarte); falha transitória que persiste vai ao DLT sem bloquear
+  a partição para sempre (antes: retry sem limite). DLT guarda chave/valor originais + headers
+  `kafka_dlt-*`; se o envio ao DLT falhar a mensagem é reentregue. Achado: com o Hikari no padrão cada
+  tentativa bloqueava ~30 s com o banco fora — `connection-timeout=5000` torna o ciclo ≈ 36 s por mensagem
+  (medido). Validado em Kafka/Postgres reais: inválidas ao DLT sem retry, queda curta (sucesso na 3ª
+  tentativa), queda longa (3 mensagens ao DLT sem perda e consumo retomando), reprocessamento do DLT sem
+  duplicar, convenção registrada no contrato do E2.1. 57 testes por serviço, PMD limpo; `order-api` e `pom.xml`
+  intocados. Parcial: "envio ao DLT falha" validado só em teste de unidade (sem Kafka nada chega ao serviço). Ver
+  [specs/017-consumer-retry-dlt](specs/017-consumer-retry-dlt/research.md). (II).
 - **E2.6** Testes de mensageria — Testcontainers Kafka por serviço (II).
 
 ### Fase 3 — Apache Airflow

@@ -72,7 +72,30 @@ pedido que originou a cadeia de eventos — não apenas o id do próprio recurso
 
 ## O que fica para itens futuros (fora do escopo de E2.1-E2.4)
 
-- Estratégia de retry/dead-letter (E2.5).
 - Testes de mensageria com Testcontainers Kafka (E2.6).
 - Schema Registry ou qualquer validação de compatibilidade automatizada entre versões de
   schema — `eventVersion` é só um campo informativo nesta etapa.
+
+## Convenção de dead-letter topic (E2.5)
+
+Cada serviço consumidor estaciona no DLT as mensagens que não consegue processar, em vez de
+descartá-las. Convenção: `<tópico-de-origem>.dlt`, tudo minúsculas, **um DLT por tópico de origem
+consumido**, declarado explicitamente pelo consumidor (3 partições, 1 réplica):
+
+| Serviço consumidor | Tópico de origem | DLT |
+|---|---|---|
+| payment-api | `order.created` | `order.created.dlt` |
+| invoice-api | `payment.reserved` | `payment.reserved.dlt` |
+
+- **O que vai ao DLT**: conteúdo inválido (ilegível, campo obrigatório ausente/inválido, valor nulo)
+  imediatamente, sem retry; falha transitória que persiste após `1 + max-retries` tentativas (padrão
+  4 retentativas, espera exponencial 1 s ×2 até 10 s).
+- **Formato**: chave e valor idênticos aos da mensagem original; headers de diagnóstico
+  `kafka_dlt-original-topic/-partition/-offset/-consumer-group/-timestamp` e
+  `kafka_dlt-exception-fqcn/-cause-fqcn/-message/-stacktrace`; sem `__TypeId__`.
+- **Garantias**: se o envio ao DLT falhar, a mensagem é reentregue (nunca perdida); a ordem entre uma
+  mensagem estacionada e as posteriores não é garantida; a idempotência por `eventId` torna o
+  reprocessamento (DLT → tópico de origem, manual) seguro.
+
+Detalhes e procedimento de reprocessamento:
+[`specs/017-consumer-retry-dlt/contracts/dlt-contract.md`](../../017-consumer-retry-dlt/contracts/dlt-contract.md).

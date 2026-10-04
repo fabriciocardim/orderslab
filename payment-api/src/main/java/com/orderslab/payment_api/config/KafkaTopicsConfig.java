@@ -11,6 +11,7 @@ public class KafkaTopicsConfig {
     public static final String ORDER_CREATED = "order.created";
     public static final String PAYMENT_RESERVED = "payment.reserved";
     public static final String PAYMENT_FAILED = "payment.failed";
+    public static final String ORDER_CREATED_DLT = "order.created.dlt";
 
     private static final int PARTITIONS = 3;
     private static final int REPLICAS = 1;
@@ -19,6 +20,12 @@ public class KafkaTopicsConfig {
     @Bean
     NewTopic orderCreatedTopic() {
         return topic(ORDER_CREATED);
+    }
+
+    /** Dead-letter topic do consumo de order.created (convenção <tópico>.dlt). */
+    @Bean
+    NewTopic orderCreatedDltTopic() {
+        return topic(ORDER_CREATED_DLT);
     }
 
     @Bean

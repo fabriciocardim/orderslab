@@ -63,6 +63,9 @@ E2.3). `issue`/`cancel` de nota `FAILED` ou já `ISSUED` caem no
 
 ## Decisão 4: Tolerância do consumidor e validação de entrada
 
+> **Atualizada pelo E2.5** ([spec 017](../017-consumer-retry-dlt/spec.md)): mensagem inválida agora vai ao DLT
+> `payment.reserved.dlt` (antes: log e descarte) e a falha transitória usa retry limitado (antes: sem limite).
+
 `PaymentReservedMessage` (record de entrada, `@JsonIgnoreProperties(ignoreUnknown = true)`) exige
 `eventId`, `orderId`, `paymentId` e `amount > 0`; ausência ou `amount <= 0` é erro **permanente**
 (log `ERROR` e descarte, FR-011); `orderId`/`paymentId` não-UUID falham no parse (também
