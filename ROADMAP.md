@@ -142,6 +142,27 @@ antes de mexer em storage) → 1.9 → 1.10 → 1.11 → 1.12.
 A cadeia `order-api → payment-api → invoice-api` funciona de ponta a ponta de forma assíncrona. Próximo passo:
 Fase 3 (Apache Airflow).
 
+### Complemento — UI do laboratório (fora da numeração das fases)
+- **U1** ✅ UI do laboratório (`frontend-react/`) — **Concluído (2026-10-05)** — adiantamento declarado (não estava no
+  ROADMAP original). **UI fina sem backend novo**: SPA React 19 + Vite 8 + TypeScript 6.0 atrás de nginx (`:3000`), que
+  faz proxy por prefixo de `/api/orders|payments|invoices` e de `/health/*` (→ `/actuator/health`) para os 3 serviços —
+  mesma origem, **sem CORS e sem alterar nenhum serviço**. Telas: novo pedido com 5 cenários de valor (10.50, 500, 750,
+  1000, 1500) e confirmar/cancelar; acompanhamento pedido → pagamento → nota derivado dos status por uma função pura
+  (`deriveFlow`, testada por tabela e exaustivamente), polling de 2 s que **para** em estado final ou após ~30 s sem
+  mudança; listagens (200 mais recentes); saúde; cartão de tópicos/DLTs com deep links para o **Kafbat**
+  (`/ui/clusters/orderslab/all-topics/<tópico>`, URL e cluster configuráveis em runtime via `config.js`). Degradação por
+  painel (timeout de 3 s). Imagem multi-stage `node:22-alpine` → `nginx:alpine`, Compose, Deployment+Service k8s, CI próprio
+  (`frontend-ci.yml` + `frontend-react.yml`: lint, testes, build, CodeQL JS/TS, empacotamento só em tag). Achados: `typescript-eslint` só
+  aceita TypeScript `<6.1` (TS preso em 6.0; o 7.0 quebra o `npm install`); MSW 3 trocou `onUnhandledRequest` por
+  `onUnhandledFrame`; no nginx o DNS dos serviços é resolvido **na requisição** (senão o nginx nem sobe com um serviço
+  ausente); no k8s os Services usam `8081/8082/8083` e no Compose a porta interna é `8080`. Validado: 59 testes (Vitest +
+  MSW + Testing Library), lint, `tsc` e build em ~26 s; imagem real (proxy, `config.js`, 502 sem derrubar, log JSON); os 5
+  cenários contra os 3 serviços reais + Kafka/Postgres em 3–5 s; confirmar/409/404/400, listas, saúde, serviço e Postgres
+  parados; os 9 links contra o Kafbat real. **Não** verificado em navegador real (extensão indisponível): a renderização é
+  coberta por testes de componente, e o layout visual deve ser conferido abrindo `http://localhost:3000`. Sem autenticação e
+  sem OpenTelemetry de navegador na v1; BFF descartado (pode voltar como evolução). Ver
+  [specs/019-lab-ui](specs/019-lab-ui/research.md). (I, IV, VI).
+
 ### Fase 3 — Apache Airflow
 - **E3.1** Caso de uso do DAG (ex.: cancelar pedidos `PENDING` travados, reconciliação diária)
   (II).
@@ -164,8 +185,9 @@ Fase 3 (Apache Airflow).
   validação de JWT, cada serviço protegendo seus próprios endpoints (V).
 - **E5.3** Modelo simples de roles/scopes, mantendo domínio simples (V, II).
 - **E5.4** Testes de integração autenticados — Testcontainers Keycloak (V, II).
-- **E5.5** Questão em aberto: constitution menciona integração "ao frontend", mas não existe
-  frontend no repo hoje — resolver escopo (Swagger UI autenticado? só service-to-service?).
+- **E5.5** Questão em aberto: constitution menciona integração "ao frontend". Agora existe um frontend no repo (a UI do
+  laboratório, `frontend-react/`, item U1, sem autenticação) — resolver escopo: autenticar essa UI via Keycloak e/ou
+  proteger o proxy do nginx (Swagger UI autenticado? só service-to-service?).
 
 ### Fase 6 — Observabilidade (3 pilares, padrão OpenTelemetry → SigNoz)
 O par instrumentação+backend já está decidido (OpenTelemetry → SigNoz, ver Princípio VI da

@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: frontend
+  name: frontend
+  namespace: orderslab
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - env:
+            # porta do Service (→ 8080 do pod), como em infra/k8s/*-service-service.yaml
+            - name: ORDER_API_URL
+              value: http://order-service:8081
+            - name: PAYMENT_API_URL
+              value: http://payment-service:8082
+            - name: INVOICE_API_URL
+              value: http://invoice-service:8083
+            # abre no navegador: precisa de port-forward/ingress do kafbat-ui
+            - name: KAFBAT_URL
+              value: http://localhost:8090
+            - name: KAFBAT_CLUSTER
+              value: orderslab
+          image: frontend-react
+          imagePullPolicy: Never
+          name: frontend-react
+          ports:
+            - containerPort: 80
+              protocol: TCP
+      restartPolicy: Always

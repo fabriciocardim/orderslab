@@ -1,0 +1,88 @@
+name: Frontend CI
+
+# Workflow reusável com os jobs de um frontend Node do monorepo (hoje: frontend-react). É chamado pelo workflow
+# fino do projeto — não dispara sozinho. O service-ci.yml é de Maven e não se aplica ao front.
+
+on:
+  workflow_call:
+    inputs:
+      project-name:
+        description: "Nome do projeto / pasta no monorepo (ex.: frontend-react)"
+        required: true
+        type: string
+
+jobs:
+  build-and-test:
+    name: Lint, Test & Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.project-name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: ${{ inputs.project-name }}/package-lock.json
+
+      - name: Instalar dependências (npm ci)
+        run: npm ci
+
+      - name: Lint (ESLint)
+        run: npm run lint
+
+      - name: Testes (Vitest)
+        run: npm test
+
+      - name: Build (tsc + vite build)
+        run: npm run build
+
+      - name: Publicar o build
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ inputs.project-name }}
+          path: ${{ inputs.project-name }}/dist/
+          retention-days: 7
+
+  security:
+    name: Security (CodeQL)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Inicializar CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          build-mode: none
+
+      - name: Analisar com CodeQL
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:javascript-typescript-${{ inputs.project-name }}"
+
+  package:
+    name: Package (Docker)
+    needs: [build-and-test, security]
+    # Release por tag: só builda a imagem quando a tag empurrada bate com "<project-name>-vX.Y.Z" (workflow chamador).
+    # Ainda não há registry configurado — quando houver, o push da imagem entra aqui.
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extrair versão da tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#${{ inputs.project-name }}-v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build da imagem Docker
+        run: docker build -t ${{ inputs.project-name }}:${{ steps.version.outputs.version }} ${{ inputs.project-name }}

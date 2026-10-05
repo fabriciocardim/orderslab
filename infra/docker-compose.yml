@@ -153,6 +153,32 @@ services:
     networks:
       - lab-network
 
+  # ==========================================
+  # FRONTEND (UI do laboratório: SPA React servida por nginx, com proxy para as 3 APIs)
+  # ==========================================
+
+  frontend:
+    build:
+      context: ../frontend-react
+      dockerfile: Dockerfile
+    container_name: frontend-react
+    ports:
+      - "3000:80"
+    environment:
+      # porta interna dos contêineres dos serviços (8080); no k8s os Services usam 8081/8082/8083
+      - ORDER_API_URL=http://order-service:8080
+      - PAYMENT_API_URL=http://payment-service:8080
+      - INVOICE_API_URL=http://invoice-service:8080
+      # os links do Kafbat abrem no navegador do host
+      - KAFBAT_URL=http://localhost:8090
+      - KAFBAT_CLUSTER=orderslab
+    depends_on:
+      - order-service
+      - payment-service
+      - invoice-service
+    networks:
+      - lab-network
+
 networks:
   lab-network:
     driver: bridge
