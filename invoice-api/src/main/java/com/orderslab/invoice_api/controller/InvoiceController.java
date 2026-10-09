@@ -3,6 +3,7 @@ package com.orderslab.invoice_api.controller;
 import com.orderslab.invoice_api.dto.InvoiceRequest;
 import com.orderslab.invoice_api.dto.InvoiceResponse;
 import com.orderslab.invoice_api.service.InvoiceService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -21,7 +22,7 @@ public class InvoiceController {
     }
 
     @PostMapping
-    public ResponseEntity<InvoiceResponse> create(@RequestBody InvoiceRequest request) {
+    public ResponseEntity<InvoiceResponse> create(@Valid @RequestBody InvoiceRequest request) {
         InvoiceResponse response = invoiceService.create(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }

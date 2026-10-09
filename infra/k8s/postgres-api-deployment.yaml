@@ -18,14 +18,21 @@ spec:
       containers:
         - env:
             - name: POSTGRES_DB
-              value: apisdb
+              value: postgres
             - name: POSTGRES_PASSWORD
-              value: apis_password
+              value: apis_admin_password
             - name: POSTGRES_USER
-              value: apis_user
+              value: apis_admin
           image: postgres:15-alpine
           name: postgres-api
           ports:
             - containerPort: 5432
               protocol: TCP
+          volumeMounts:
+            - name: postgres-init
+              mountPath: /docker-entrypoint-initdb.d
+      volumes:
+        - name: postgres-init
+          configMap:
+            name: postgres-api-init
       restartPolicy: Always

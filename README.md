@@ -31,7 +31,7 @@ O domínio do laboratório é a **Gestão de Pedidos**, estruturado em um modelo
 | **Keycloak (IAM)** | Keycloak | `8080` | `8080` |
 | **Apache Kafka** | Apache Kafka (modo KRaft, sem Zookeeper) | `9092` | `9092` / `29092` |
 | **Kafbat UI** | UI de visualização/administração do Kafka | `8090` | `8090` |
-| **Frontend** | React (Vite) | `3000` | `80` |
+| **Frontend (UI do laboratório)** | React (Vite) + nginx | `3000` | `80` |
 
 ---
 
@@ -45,7 +45,7 @@ orderslab/
 ├── order-api/                    <-- Microsserviço 1: Domínio de Pedidos (Spring Boot / Maven / Dockerfile)
 ├── payment-api/                  <-- Microsserviço 2: Domínio de Pagamentos (Spring Boot / Maven / Dockerfile)
 ├── invoice-api/                  <-- Microsserviço 3: Emissão de Notas Fiscais (Spring Boot / Maven / Dockerfile)
-├── frontend-react/               <-- (ainda não criado) Aplicação Frontend em React (Vite)
+├── frontend-react/               <-- UI do laboratório: SPA React (Vite + TypeScript) servida por nginx, com proxy para as 3 APIs
 ├── airflow/                      <-- (ainda não criado) DAGs e pipelines do Apache Airflow
 └── README.md
 
@@ -60,7 +60,7 @@ orderslab/
 * As funcionalidades de pagamento e emissão de nota fiscal **não** possuem lógica de negócio real; o sistema apenas processa e transaciona mensagens informando se o pagamento foi realizado ou não e se a nota foi emitida ou não.
 
 
-3. **Ausência de Banco de Dados nos Serviços (Fase Inicial):** Os microsserviços de negócio não utilizam banco de dados em um primeiro momento (o estado é mantido em memória, ex: `ConcurrentHashMap`), focando estritamente na análise e validação da comunicação entre os serviços.
+3. **Persistência Real desde a Fase 1:** Os microsserviços utilizam banco de dados real (PostgreSQL via JPA) para o estado que cada feature exigir — armazenamento em memória (`ConcurrentHashMap`) só é aceitável como andaime temporário durante o desenvolvimento, nunca como implementação entregue (ver [constitution](.specify/memory/constitution.md), Princípio III).
 4. **Prontidão para Nuvem (Cloud-Native):** Desenvolvidos on-premisse mas arquitetados para migração futura à nuvem, contando com conteinerização via Docker (`Dockerfile` multi-stage) e orquestração via Kubernetes (`Pods` e `Deployments` dedicados).
 5. **Segurança e IAM:** Camada final de autenticação e autorização centralizada utilizando o **Keycloak** integrado aos microsserviços e ao frontend.
 
@@ -105,6 +105,26 @@ curl http://localhost:8090/actuator/health
 ```
 
 Acesse a UI do Kafka em http://localhost:8090 para inspecionar tópicos e mensagens do broker.
+
+#### UI do laboratório (frontend-react)
+
+Com os serviços no ar, abra **http://localhost:3000**: crie um pedido (formulário ou botões de cenário), acompanhe
+pedido → pagamento → nota, veja as listagens, a saúde dos serviços e os links dos tópicos Kafka (Kafbat). O nginx da UI faz
+proxy de `/api/orders`, `/api/payments`, `/api/invoices` e de `/health/*` para os serviços — mesma origem, sem CORS.
+
+| Cenário (botão) | Valor | Resultado esperado (pedido → pagamento → nota) |
+|---|---|---|
+| Valor baixo | 10.50 | feito → feito → feito |
+| Exatamente 500 | 500 | feito → feito → feito |
+| Entre 500 e 1000 | 750 | feito → feito → **nota falha** |
+| Exatamente 1000 | 1000 | feito → feito → **nota falha** |
+| Acima de 1000 | 1500 | feito → **pagamento falha** → sem nota |
+
+Limites atuais: pagamento falha acima de 1000.00 e nota falha acima de 500.00. O motivo da falha não vem do REST: use o
+link do Kafbat. Variáveis do contêiner: `ORDER_API_URL`, `PAYMENT_API_URL`, `INVOICE_API_URL` (no Compose `…:8080`; no
+k8s as portas dos Services, `8081/8082/8083`), `KAFBAT_URL` (padrão `http://localhost:8090`) e `KAFBAT_CLUSTER`
+(padrão `orderslab`). Desenvolvimento: `cd frontend-react && npm ci && npm run dev` (proxy do Vite para `localhost:8081-8083`);
+gates: `npm run lint && npm test && npm run build`. Detalhes: [specs/019-lab-ui](specs/019-lab-ui/quickstart.md).
 
 Para derrubar os containers:
 
@@ -348,11 +368,55 @@ cd order-api
 
 ## 🗺️ 7. Fases de Evolução do Laboratório
 
-* **Fase 1 (Atual):** Implementação da estrutura base, comunicação síncrona via HTTP/REST, sem persistência em banco de dados (estado em memória) e conteinerização via Docker.
+* **Fase 1 (Atual):** Implementação da estrutura base, comunicação síncrona via HTTP/REST, persistência real via PostgreSQL/JPA e conteinerização via Docker.
 * **Fase 2:** Evolução da comunicação síncrona para mensageria assíncrona utilizando **Apache Kafka** (o broker já está disponível via Docker Compose/Kubernetes — ver seção 5.2 —, mas nenhum microsserviço ainda produz ou consome mensagens nele).
 * **Fase 3:** Orquestração de fluxos e rotinas com **Apache Airflow**.
 * **Fase 4 (Em andamento):** Implantação e validação local utilizando **Kubernetes** (cluster local do Docker Desktop — ver seção 5), garantindo pods e serviços isolados.
 * **Fase 5:** Implementação da segurança de ponta a ponta com **Keycloak (IAM)** protegendo rotas e APIs.
+
+---
+
+## 🧭 8. Spec-Driven Development (Spec Kit)
+
+O laboratório adota [Spec Kit](https://github.com/github/spec-kit) para o desenvolvimento de
+novas features, seguindo o fluxo de Spec-Driven Development (SDD). Os princípios de
+governança do projeto (independência dos serviços, persistência real desde a Fase 1,
+portabilidade cloud-agnostic, observabilidade de primeira classe, etc. — ver seção 3 acima)
+estão formalizados em [`.specify/memory/constitution.md`](.specify/memory/constitution.md).
+O backlog de features candidatas, organizado pelas fases do laboratório, fica em
+[`ROADMAP.md`](ROADMAP.md).
+
+### 8.1 Fluxo de trabalho
+
+Os comandos abaixo ficam disponíveis como skills do Claude Code em `.claude/skills/` (uma
+sessão nova do agente precisa ser aberta após a instalação para que apareçam):
+
+| Ordem | Comando | O que faz |
+| --- | --- | --- |
+| 0 | `/speckit-constitution` | Cria/atualiza os princípios de governança do projeto |
+| 1 | `/speckit-specify` | Cria a especificação de uma feature |
+| 2 | `/speckit-plan` | Gera o plano técnico de implementação |
+| 3 | `/speckit-tasks` | Quebra o plano em tarefas acionáveis |
+| 4 | `/speckit-implement` | Executa a implementação das tarefas |
+| 5 | `/speckit-converge` | Avalia o código e lista trabalho restante como tarefas |
+
+Skills opcionais de reforço de qualidade: `/speckit-clarify` (antes do `/speckit-plan`, para
+reduzir ambiguidade), `/speckit-analyze` (depois do `/speckit-tasks`, checagem de
+consistência entre artefatos) e `/speckit-checklist` (depois do `/speckit-plan`, checklist de
+completude dos requisitos).
+
+### 8.2 Onde as coisas ficam
+
+```text
+.specify/
+├── memory/constitution.md   <-- Princípios de governança do laboratório
+├── templates/                <-- Templates de spec/plan/tasks
+└── scripts/                  <-- Scripts auxiliares dos comandos acima
+```
+
+Cada feature especificada via `/speckit-specify` MUST declarar qual(is) serviço(s)
+(`order-api`, `payment-api`, `invoice-api`) ela toca, já que o monorepo trata os três como
+projetos independentes (ver seção 3).
 
 ---
 

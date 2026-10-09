@@ -18,11 +18,11 @@ spec:
       containers:
         - env:
             - name: SPRING_DATASOURCE_PASSWORD
-              value: apis_password
+              value: order_password
             - name: SPRING_DATASOURCE_URL
-              value: jdbc:postgresql://postgres-api:5432/apisdb
+              value: jdbc:postgresql://postgres-api:5432/order_db
             - name: SPRING_DATASOURCE_USERNAME
-              value: apis_user
+              value: order_user
             - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
               value: kafka:29092
           image: order-service

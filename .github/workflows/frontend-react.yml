@@ -1,0 +1,22 @@
+name: frontend-react
+
+on:
+  push:
+    branches: ['**']
+    tags:
+      - 'frontend-react-v*.*.*'
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - 'frontend-react/**'
+      - '.github/workflows/frontend-react.yml'
+      - '.github/workflows/frontend-ci.yml'
+
+jobs:
+  ci:
+    permissions:
+      contents: read
+      security-events: write
+    uses: ./.github/workflows/frontend-ci.yml
+    with:
+      project-name: frontend-react
