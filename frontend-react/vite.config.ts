@@ -1,18 +1,22 @@
 import react from '@vitejs/plugin-react';
-import { defineConfig } from 'vitest/config';
+
+// mesmas variáveis de ambiente que infra/docker-compose.yml declara para o serviço "frontend"
+const orderApiUrl = process.env.ORDER_API_URL ?? 'http://order-service:8080';
+const paymentApiUrl = process.env.PAYMENT_API_URL ?? 'http://payment-service:8080';
+const invoiceApiUrl = process.env.INVOICE_API_URL ?? 'http://invoice-service:8080';
 
 const health = (target: string) => ({ target, rewrite: () => '/actuator/health' });
 
-export default defineConfig({
+export default {
   plugins: [react()],
   server: {
     proxy: {
-      '/api/orders': 'http://localhost:8081',
-      '/api/payments': 'http://localhost:8082',
-      '/api/invoices': 'http://localhost:8083',
-      '/health/order': health('http://localhost:8081'),
-      '/health/payment': health('http://localhost:8082'),
-      '/health/invoice': health('http://localhost:8083'),
+      '/api/orders': orderApiUrl,
+      '/api/payments': paymentApiUrl,
+      '/api/invoices': invoiceApiUrl,
+      '/health/order': health(orderApiUrl),
+      '/health/payment': health(paymentApiUrl),
+      '/health/invoice': health(invoiceApiUrl),
     },
   },
   test: {
@@ -23,4 +27,4 @@ export default defineConfig({
     maxWorkers: 2,
     testTimeout: 15_000,
   },
-});
+};
