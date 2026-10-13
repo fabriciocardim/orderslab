@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: orderslab
+  labels:
+    app: otel-collector
+data:
+  # Mesmo conteúdo de infra/otel-collector-config.yaml — os Services k8s abaixo usam os
+  # mesmos nomes (jaeger/prometheus/loki) do Docker Compose, então nenhum hostname muda.
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    processors:
+      batch:
+
+    exporters:
+      otlp/jaeger:
+        endpoint: jaeger:4317
+        tls:
+          insecure: true
+      otlphttp/prometheus:
+        endpoint: http://prometheus:9090/api/v1/otlp/v1/metrics
+        metrics_endpoint: http://prometheus:9090/api/v1/otlp/v1/metrics
+        tls:
+          insecure: true
+      otlphttp/loki:
+        # endpoint genérico (não logs_endpoint): o exporter acrescenta "/v1/logs" sozinho —
+        # é assim que a documentação da Grafana configura o endpoint OTLP nativo do Loki.
+        endpoint: http://loki:3100/otlp
+        tls:
+          insecure: true
+
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [otlp/jaeger]
+        metrics:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [otlphttp/prometheus]
+        logs:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [otlphttp/loki]

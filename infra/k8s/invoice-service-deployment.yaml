@@ -16,6 +16,10 @@ spec:
         app: invoice-service
     spec:
       containers:
+        # Nenhuma env var de OTLP aqui: application.properties já aponta para
+        # http://otel-collector:4318/... e o Service otel-collector (infra/k8s/
+        # otel-collector-service.yaml) usa o mesmo hostname/porta — resolve sem
+        # necessidade de override, igual ao Docker Compose (T010).
         - env:
             - name: SPRING_DATASOURCE_PASSWORD
               value: invoice_password

@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: loki
+  name: loki
+  namespace: orderslab
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: loki
+  template:
+    metadata:
+      labels:
+        app: loki
+    spec:
+      containers:
+        - image: grafana/loki:3.7.8
+          name: loki
+          ports:
+            - containerPort: 3100
+              protocol: TCP
+      restartPolicy: Always
