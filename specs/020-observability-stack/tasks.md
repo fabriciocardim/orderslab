@@ -162,7 +162,7 @@ nenhum serviço gerenciado proprietário de nuvem (Princípio IV).
 - [X] T028 [P] Atualizar o item E6.1 de `ROADMAP.md` como concluído (incluindo a nota de que a
       feature foi replanejada de SigNoz para Collector genérico + Prometheus/Loki/Jaeger/Grafana
       por emenda à constitution v4.0.0)
-- [ ] T029 Commitar as edições dos 3 serviços e `specs/020-observability-stack/` na branch
+- [X] T029 Commitar as edições dos 3 serviços e `specs/020-observability-stack/` na branch
       `feature/O001_observability_stack`
 
 ---
