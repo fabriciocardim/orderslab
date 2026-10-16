@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: orderslab
+  labels:
+    app: grafana
+data:
+  # Equivalente a infra/grafana/provisioning/datasources/datasources.yaml — mesmos
+  # hostnames, já que os Services k8s abaixo (jaeger/prometheus/loki) têm os mesmos
+  # nomes do Docker Compose (research.md, Decisão 6).
+  datasources.yaml: |
+    apiVersion: 1
+
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: true
+        editable: false
+
+      - name: Loki
+        type: loki
+        access: proxy
+        url: http://loki:3100
+        editable: false
+
+      - name: Jaeger
+        type: jaeger
+        access: proxy
+        url: http://jaeger:16686
+        editable: false

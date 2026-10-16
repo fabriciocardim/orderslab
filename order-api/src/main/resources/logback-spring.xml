@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- Mantém o CONSOLE appender com encoder ECS (logging.structured.format.console=ecs em
+         application.properties) — base.xml é legado e NÃO aplica CONSOLE_LOG_STRUCTURED_FORMAT,
+         por isso o include explícito de defaults.xml + structured-console-appender.xml. -->
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <include resource="org/springframework/boot/logging/logback/structured-console-appender.xml"/>
+
+    <!-- Encaminha os logs também para o OpenTelemetry SDK, que os exporta via OTLP
+         para o otel-collector (endpoint em management.opentelemetry.logging.export.otlp.endpoint).
+         O OpenTelemetry instance é injetado em runtime por OtlpLoggingConfig
+         (research.md, Decisão 5). -->
+    <appender name="OTEL" class="io.opentelemetry.instrumentation.logback.appender.v1_0.OpenTelemetryAppender">
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="OTEL"/>
+    </root>
+</configuration>

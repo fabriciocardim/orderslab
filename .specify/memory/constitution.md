@@ -1,16 +1,17 @@
 <!--
 Sync Impact Report
-- Version change: 3.2.1 → 3.3.0
-- Modified principles (mesma regra; só removidos detalhes de implementação, de fase e de
-  histórico, e encurtados os rationales): I, II, III, IV, V, VI, VII
+- Version change: 3.3.0 → 4.0.0
+- Modified principles: VI (redefinição incompatível — remove o mandato explícito de "SigNoz";
+  introduz o OpenTelemetry Collector genérico/vendor-neutral como camada obrigatória entre
+  aplicação e backend; registra Prometheus+Loki+Jaeger+Grafana como a escolha de ferramentas
+  self-hosted vigente, não como requisito arquitetural travado)
 - Added sections: nenhuma
-- Added rules (Governance): regra de adiantamento em relação ao ROADMAP.md; cláusula de
-  escopo da constitution (só princípios e decisões duradouras)
-- Removed sections: "Fases de Evolução do Laboratório" (o ROADMAP.md é o dono das fases);
-  status datado na introdução
-- Follow-up TODOs: nenhum
-- Motivação: evitar emendas a cada mudança de status/fase; a constitution registra só
-  princípios e decisões duradouras. Supera a emenda 3.2.1.
+- Removed sections: nenhuma
+- Follow-up TODOs: a feature em planejamento para o backend de observabilidade (deploy do
+  stack self-hosted, item E6.1 do ROADMAP) precisa ser replanejada para refletir esta emenda —
+  Collector genérico + Prometheus/Loki/Jaeger/Grafana, não mais SigNoz.
+- Motivação: evitar lock-in de ferramenta de observabilidade, decisão consciente do
+  responsável pelo laboratório. Supera a emenda 3.3.0.
 -->
 
 # orderslab Constitution
@@ -73,16 +74,24 @@ ao frontend; nenhum serviço MUST implementar mecanismo de autenticação parale
 **Rationale**: um único ponto de verdade para identidade evita duplicação de lógica de
 autenticação e reflete segurança corporativa com IdP.
 
-### VI. Observabilidade como Requisito de Primeira Classe (OpenTelemetry + SigNoz)
+### VI. Observabilidade como Requisito de Primeira Classe (OpenTelemetry, backend desacoplado)
 Todo serviço MUST ser instrumentado desde sua criação ou alteração — não depois — cobrindo
-logs estruturados, métricas e traces distribuídos. O projeto MUST usar **OpenTelemetry** como
-padrão único de instrumentação (OTLP) e **SigNoz** (self-hosted) como plataforma que consome
-essa telemetria. Uma feature que toque um serviço MUST tratar sua instrumentação, mesmo
-mínima, como parte do escopo da própria feature, não como débito para depois.
+logs estruturados, métricas e traces distribuídos. O projeto MUST usar **OpenTelemetry** (OTLP)
+como padrão único de instrumentação, e toda telemetria MUST ser ingerida por um
+**OpenTelemetry Collector genérico** (distribuição core, vendor-neutral, sem exporters
+proprietários de um único fornecedor) antes de chegar a qualquer backend de armazenamento ou
+visualização — nenhum serviço MUST exportar telemetria diretamente para um produto específico.
+O backend self-hosted atual (Prometheus para métricas, Loki para logs, Jaeger para traces,
+visualizados via Grafana) é a escolha de ferramentas vigente, não um requisito arquitetural
+travado: trocar qualquer um desses componentes MUST preservar o contrato OTLP entre aplicação
+e Collector, sem exigir reinstrumentar nenhum serviço. Uma feature que toque um serviço MUST
+tratar sua instrumentação, mesmo mínima, como parte do escopo da própria feature, não como
+débito para depois.
 
 **Rationale**: os agentes de SRE (Princípio VII) dependem de telemetria de qualidade, e
-observabilidade retroativa é pior e mais cara; um padrão aberto evita reinstrumentar quando o
-backend mudar.
+observabilidade retroativa é pior e mais cara; desacoplar a instrumentação do backend por trás
+de um Collector genérico evita lock-in de ferramenta e permite trocar ou comparar stacks de
+observabilidade ao longo do tempo sem reinstrumentar os serviços.
 
 ### VII. Governança de Remediação Autônoma (SRE)
 Os agentes autônomos de SRE PODEM detectar problemas, diagnosticar causa raiz pelos pilares de
@@ -130,4 +139,4 @@ explicitamente qualquer desvio de um princípio e justificá-lo, ou ajustar o es
 respeitar a constitution vigente. O `README.md` traz as instruções operacionais (como rodar,
 testar e implantar).
 
-**Version**: 3.3.0 | **Ratified**: 2026-09-24 | **Last Amended**: 2026-10-04
+**Version**: 4.0.0 | **Ratified**: 2026-09-24 | **Last Amended**: 2026-10-12

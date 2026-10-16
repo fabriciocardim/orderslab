@@ -189,14 +189,25 @@ Fase 3 (Apache Airflow).
   laboratório, `frontend-react/`, item U1, sem autenticação) — resolver escopo: autenticar essa UI via Keycloak e/ou
   proteger o proxy do nginx (Swagger UI autenticado? só service-to-service?).
 
-### Fase 6 — Observabilidade (3 pilares, padrão OpenTelemetry → SigNoz)
-O par instrumentação+backend já está decidido (OpenTelemetry → SigNoz, ver Princípio VI da
-constitution) — SigNoz embute seu próprio OTel Collector e ClickHouse, dispensando montar uma
-stack modular separada de Prometheus/Grafana/Loki/Tempo. O que resta decidir nesta fase é a
-topologia de deploy.
-- **E6.1** Deploy do SigNoz self-hosted — Docker Compose (`infra/docker-compose.yml`) para
-  ambiente local e Helm chart em `infra/k8s/` para o cluster; apontar o endpoint OTLP do
-  SigNoz nos 3 serviços (VI, IV).
+### Fase 6 — Observabilidade (3 pilares, padrão OpenTelemetry → Collector genérico)
+O par instrumentação+backend era OpenTelemetry → SigNoz (ver histórico abaixo), mas uma emenda
+à constitution (v4.0.0, Princípio VI) trocou o requisito para evitar lock-in de ferramenta:
+nenhum serviço MUST exportar telemetria direto para um produto específico, só para um
+Collector genérico (distribuição core, sem exporters proprietários), que roteia para
+Prometheus/Loki/Jaeger, unificados via Grafana.
+- **E6.1** ✅ Deploy do backend de observabilidade self-hosted — **Concluído (2026-10-13)** —
+  Collector genérico (`otel/opentelemetry-collector:0.162.0`, core) + Jaeger + Prometheus +
+  Loki + Grafana, via Docker Compose (`infra/docker-compose.yml`) e manifests k8s simples em
+  `infra/k8s/`; os 3 serviços apontam só para o Collector (endpoint OTLP), que roteia para os
+  backends nativos via `otlp`/`otlphttp` — nenhum exporter proprietário. Replanejado de SigNoz
+  para esta stack modular pela emenda à constitution v4.0.0 (Princípio VI) citada acima — a
+  primeira versão desta feature (`specs/020-signoz-deploy`, descartada) mandava SigNoz.
+  Validado empiricamente via `quickstart.md`: trace real navegável no Jaeger, log correlacionado
+  por `trace_id` no Loki, métricas no Prometheus, tudo via Grafana (datasources provisionados
+  como código); graceful degradation confirmada (os 3 serviços continuam respondendo com o
+  backend parado); troca de destino de um pipeline no Collector não exigiu tocar nos 3 serviços;
+  170 testes dos itens 1.1-1.12/E2.1-E2.6 continuam passando sem alteração de comportamento. Ver
+  [specs/020-observability-stack](specs/020-observability-stack/research.md).
 - **E6.2** Métricas — auto-instrumentação OTel exportando via OTLP para o SigNoz nos 3
   serviços (VI).
 - **E6.3** Logs estruturados centralizados — enriquecidos com `trace_id`/`span_id` (correlação

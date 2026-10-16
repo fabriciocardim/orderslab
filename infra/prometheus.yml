@@ -1,0 +1,4 @@
+# Sem scrape_configs: ingestão é só via OTLP nativo (--web.enable-otlp-receiver no
+# command do serviço prometheus em docker-compose.yml), conforme research.md, Decisão 3.
+global:
+  scrape_interval: 15s

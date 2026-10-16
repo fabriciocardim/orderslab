@@ -60,6 +60,76 @@ services:
       - lab-network
 
   # ==========================================
+  # OBSERVABILIDADE (Collector genérico + Jaeger + Prometheus + Loki + Grafana —
+  # nenhum backend proprietário de nuvem, Princípio IV/VI. Os 3 serviços só falam
+  # com o otel-collector; a troca de qualquer backend abaixo é transparente para eles)
+  # ==========================================
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.76.0
+    container_name: jaeger
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "16686:16686"
+    networks:
+      - lab-network
+
+  prometheus:
+    image: prom/prometheus:v3.13.4
+    container_name: prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.console.libraries=/usr/share/prometheus/console_libraries
+      - --web.console.templates=/usr/share/prometheus/consoles
+      - --web.enable-otlp-receiver
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    networks:
+      - lab-network
+
+  loki:
+    image: grafana/loki:3.7.8
+    container_name: loki
+    ports:
+      - "3100:3100"
+    networks:
+      - lab-network
+
+  grafana:
+    image: grafana/grafana:13.2.3
+    container_name: grafana
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+      - loki
+      - jaeger
+    networks:
+      - lab-network
+
+  # Único ponto de saída de telemetria da aplicação (FR-004) — os 3 serviços nunca
+  # falam direto com Jaeger/Prometheus/Loki, só com este Collector genérico.
+  otel-collector:
+    image: otel/opentelemetry-collector:0.162.0
+    container_name: otel-collector
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otelcol/config.yaml:ro
+    depends_on:
+      - jaeger
+      - prometheus
+      - loki
+    networks:
+      - lab-network
+
+  # ==========================================
   # INFRAESTRUTURA BASE (ainda não utilizada nesta fase)
   # ==========================================
 
@@ -114,6 +184,7 @@ services:
     depends_on:
       - postgres-api
       - kafka
+      - otel-collector
     networks:
       - lab-network
 
@@ -132,6 +203,7 @@ services:
     depends_on:
       - postgres-api
       - kafka
+      - otel-collector
     networks:
       - lab-network
 
@@ -150,6 +222,7 @@ services:
     depends_on:
       - postgres-api
       - kafka
+      - otel-collector
     networks:
       - lab-network
 
