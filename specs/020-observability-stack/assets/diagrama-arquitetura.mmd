@@ -1,0 +1,33 @@
+flowchart LR
+    subgraph APPS[" "]
+        direction TB
+        OA[order-api]
+        PA[payment-api]
+        IA[invoice-api]
+    end
+
+    OA -- OTLP --> OTEL
+    PA -- OTLP --> OTEL
+    IA -- OTLP --> OTEL
+
+    OTEL["OTel Collector<br/>único ponto de saída<br/>de telemetria<br/>(core, sem exporters<br/>proprietários)"]
+
+    OTEL -- "otlp / gRPC" --> JAEGER["Jaeger<br/>(traces)"]
+    OTEL -- otlphttp --> PROM["Prometheus<br/>(métricas)"]
+    OTEL -- otlphttp --> LOKI["Loki<br/>(logs)"]
+
+    JAEGER --> GRAFANA
+    PROM --> GRAFANA
+    LOKI --> GRAFANA
+
+    GRAFANA["Grafana<br/>datasources como<br/>código"]
+
+    classDef app fill:#dbeafe,stroke:#2563eb,color:#1e3a8a;
+    classDef collector fill:#fef3c7,stroke:#d97706,color:#78350f;
+    classDef backend fill:#dcfce7,stroke:#16a34a,color:#14532d;
+    classDef viz fill:#ede9fe,stroke:#7c3aed,color:#4c1d95;
+
+    class OA,PA,IA app;
+    class OTEL collector;
+    class JAEGER,PROM,LOKI backend;
+    class GRAFANA viz;
