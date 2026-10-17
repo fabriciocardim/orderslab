@@ -13,3 +13,6 @@ target/
 
 # OS
 .DS_Store
+
+# Segredos locais
+.env
