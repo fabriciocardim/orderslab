@@ -95,4 +95,9 @@ Achados de ambiente (não do código):
   Unix-domain do pipe interno é criado no `%TEMP%` do usuário (afeta `HttpClient` do `RestTestClient` e o cliente
   Kafka). Contornado com `JAVA_TOOL_OPTIONS=-Djdk.net.unixdomain.tmpdir=C:/Windows/Temp` só na execução dos testes.
 
-Pendente (pós-deploy, SC-005): repetir o perfil `load` do T1 em produção.
+**SC-005 verificado em produção (2026-10-19, rodada `load-prod2-202610192231`, mesmo perfil `load` do T1)**: 63.747
+requisições e 0 falhas (antes: 54.010 e 21,2%); 0 respostas 504 (antes: 8.646); `GET /api/payments?orderId` com p95 de
+107 ms e respostas de ~0,2 KB estáveis (antes: listas de até 782 KB e p95 de 60 s); 7.349 pedidos, 0 iterações
+descartadas e no máximo 93 VUs (antes: 820 descartadas e 919 VUs); 969 MB baixados (antes: 6 GB). Pedido→nota (sonda):
+mediana de 2,1 s e p95 de 3,2 s; 0 fluxos sem conclusão em 2.494. `monitor.sh` na VPS: lag 0 nos dois consumidores e
+outbox oscilando entre 0 e ~20 durante todo o patamar.
