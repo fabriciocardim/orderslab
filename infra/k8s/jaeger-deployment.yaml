@@ -17,10 +17,18 @@ spec:
     spec:
       containers:
         - env:
+            - name: MEMORY_MAX_TRACES
+              value: "20000"
             - name: COLLECTOR_OTLP_ENABLED
               value: "true"
           image: jaegertracing/all-in-one:1.76.0
           name: jaeger
+          # spec 022: limite igual ao do Compose; request = metade (cluster local, 3 réplicas das APIs)
+          resources:
+            requests:
+              memory: 256Mi
+            limits:
+              memory: 512Mi
           ports:
             - containerPort: 4317
               protocol: TCP

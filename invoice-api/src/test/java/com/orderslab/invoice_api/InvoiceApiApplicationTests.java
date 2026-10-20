@@ -421,4 +421,79 @@ class InvoiceApiApplicationTests {
         assertThat(sentKeys).containsExactlyInAnyOrderElementsOf(orders.stream().map(UUID::toString).toList());
         assertThat(jdbc.queryForObject("select count(*) from outbox_events", Integer.class)).isZero();
     }
+
+
+    private String createInvoiceFor(UUID orderId) {
+        InvoiceResponse created = restTestClient.post().uri("/api/invoices")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{\"orderId\":\"" + orderId + "\",\"paymentId\":\"" + UUID.randomUUID() + "\",\"amount\":10}")
+                .exchange()
+                .expectStatus().isCreated()
+                .expectBody(InvoiceResponse.class)
+                .returnResult()
+                .getResponseBody();
+        assertThat(created).isNotNull();
+        return created.getId().toString();
+    }
+
+    @Test
+    void listingShouldReturnTheMostRecentUpToTheLimitWithTheTotalInTheHeader() {
+        createInvoiceFor(UUID.randomUUID());
+        String older = createInvoiceFor(UUID.randomUUID());
+        String newest = createInvoiceFor(UUID.randomUUID());
+        Integer total = jdbc.queryForObject("select count(*) from invoices", Integer.class);
+
+        restTestClient.get().uri("/api/invoices?limit=2")
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().valueEquals("X-Total-Count", String.valueOf(total))
+                .expectBody()
+                .jsonPath("$.length()").isEqualTo(2)
+                .jsonPath("$[0].id").isEqualTo(newest)
+                .jsonPath("$[1].id").isEqualTo(older);
+
+        restTestClient.get().uri("/api/invoices?limit=501")
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.message").isEqualTo("Erro de validação");
+    }
+
+    @Test
+    void migrationShouldCreateTheIndexesUsedByTheListings() {
+        List<String> indexes = jdbc.queryForList("select indexname from pg_indexes where tablename = 'invoices'", String.class);
+
+        assertThat(indexes).contains("ix_invoices_order_id", "ix_invoices_created_at");
+    }
+
+    @Test
+    void filteringByOrderIdShouldReturnOnlyThatOrdersRecordsNewestFirst() {
+        UUID orderId = UUID.randomUUID();
+        String first = createInvoiceFor(orderId);
+        String second = createInvoiceFor(orderId);
+        createInvoiceFor(UUID.randomUUID());
+
+        restTestClient.get().uri("/api/invoices?orderId={id}", orderId)
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().doesNotExist("X-Total-Count")
+                .expectBody()
+                .jsonPath("$.length()").isEqualTo(2)
+                .jsonPath("$[0].id").isEqualTo(second)
+                .jsonPath("$[1].id").isEqualTo(first);
+
+        // o id em maiúsculas é o mesmo UUID
+        restTestClient.get().uri("/api/invoices?orderId={id}", orderId.toString().toUpperCase())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.length()").isEqualTo(2);
+
+        // pedido sem registro ainda: lista vazia, não erro
+        restTestClient.get().uri("/api/invoices?orderId={id}", UUID.randomUUID())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.length()").isEqualTo(0);
+    }
 }

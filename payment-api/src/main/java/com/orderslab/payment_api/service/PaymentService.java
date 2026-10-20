@@ -1,5 +1,6 @@
 package com.orderslab.payment_api.service;
 
+import com.orderslab.payment_api.dto.PaymentPage;
 import com.orderslab.payment_api.dto.PaymentReservationRequest;
 import com.orderslab.payment_api.dto.PaymentResponse;
 import com.orderslab.payment_api.exception.InvalidStatusTransitionException;
@@ -9,11 +10,13 @@ import com.orderslab.payment_api.model.PaymentStatus;
 import com.orderslab.payment_api.repository.PaymentRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 public class PaymentService {
@@ -68,10 +71,25 @@ public class PaymentService {
         return toResponse(findOrThrow(paymentId));
     }
 
-    public List<PaymentResponse> findAll() {
-        return paymentRepository.findAll().stream()
+    public List<PaymentResponse> findByOrderId(UUID orderId) {
+        // order_id é VARCHAR com o UUID em minúsculas (como UUID.toString())
+        List<PaymentResponse> found = paymentRepository.findByOrderIdOrderByCreatedAtDesc(orderId.toString()).stream()
                 .map(this::toResponse)
-                .collect(Collectors.toList());
+                .toList();
+        log.atDebug()
+                .addKeyValue("orderId", orderId)
+                .addKeyValue("count", found.size())
+                .log("Payments listed by order");
+        return found;
+    }
+
+    public PaymentPage findRecent(int limit) {
+        Page<Payment> page = paymentRepository.findAll(PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "createdAt")));
+        log.atDebug()
+                .addKeyValue("limit", limit)
+                .addKeyValue("total", page.getTotalElements())
+                .log("Recent payments listed");
+        return new PaymentPage(page.map(this::toResponse).getContent(), page.getTotalElements());
     }
 
     private Payment findOrThrow(UUID paymentId) {

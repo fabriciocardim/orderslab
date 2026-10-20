@@ -300,4 +300,48 @@ class OrderApiApplicationTests {
             assertThat(topics).containsExactly("order.created", "order.confirmed");
         }
     }
+
+
+    private String createOrderFor(UUID orderId) {
+        OrderResponse created = restTestClient.post().uri("/api/orders")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{\"customerId\":\"cliente\",\"amount\":10}")
+                .exchange()
+                .expectStatus().isCreated()
+                .expectBody(OrderResponse.class)
+                .returnResult()
+                .getResponseBody();
+        assertThat(created).isNotNull();
+        return created.getId().toString();
+    }
+
+    @Test
+    void listingShouldReturnTheMostRecentUpToTheLimitWithTheTotalInTheHeader() {
+        createOrderFor(UUID.randomUUID());
+        String older = createOrderFor(UUID.randomUUID());
+        String newest = createOrderFor(UUID.randomUUID());
+        Integer total = jdbc.queryForObject("select count(*) from orders", Integer.class);
+
+        restTestClient.get().uri("/api/orders?limit=2")
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().valueEquals("X-Total-Count", String.valueOf(total))
+                .expectBody()
+                .jsonPath("$.length()").isEqualTo(2)
+                .jsonPath("$[0].id").isEqualTo(newest)
+                .jsonPath("$[1].id").isEqualTo(older);
+
+        restTestClient.get().uri("/api/orders?limit=501")
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.message").isEqualTo("Erro de validação");
+    }
+
+    @Test
+    void migrationShouldCreateTheIndexesUsedByTheListings() {
+        List<String> indexes = jdbc.queryForList("select indexname from pg_indexes where tablename = 'orders'", String.class);
+
+        assertThat(indexes).contains("ix_orders_created_at");
+    }
 }

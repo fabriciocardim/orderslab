@@ -7,8 +7,10 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.orderslab.order_api.config.KafkaTopicsConfig;
+import com.orderslab.order_api.dto.OrderPage;
 import com.orderslab.order_api.dto.OrderRequest;
 import com.orderslab.order_api.dto.OrderResponse;
 import com.orderslab.order_api.event.OrderCancelled;
@@ -23,6 +25,7 @@ import com.orderslab.order_api.repository.OrderRepository;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -33,6 +36,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 @ExtendWith(MockitoExtension.class)
 class OrderServiceTest {
@@ -64,7 +71,8 @@ class OrderServiceTest {
             UUID id = invocation.getArgument(0);
             return Optional.ofNullable(savedOrders.get(id));
         });
-        lenient().when(orderRepository.findAll()).thenAnswer(invocation -> new ArrayList<>(savedOrders.values()));
+        lenient().when(orderRepository.findAll(any(Pageable.class))).thenAnswer(invocation ->
+                new PageImpl<>(new ArrayList<>(savedOrders.values()), invocation.getArgument(0), savedOrders.size()));
     }
 
     private OrderResponse createOrder() {
@@ -140,8 +148,27 @@ class OrderServiceTest {
     }
 
     @Test
-    void shouldReturnEmptyListWhenNoneCreated() {
-        assertThat(orderService.findAll()).isEmpty();
+    void shouldReturnAnEmptyPageWhenNoneCreated() {
+        OrderPage page = orderService.findRecent(200);
+
+        assertThat(page.items()).isEmpty();
+        assertThat(page.total()).isZero();
+    }
+
+    @Test
+    void shouldAskTheRepositoryForTheMostRecentPageOfTheRequestedSize() {
+        Order newest = new Order("cliente", BigDecimal.TEN);
+        when(orderRepository.findAll(any(Pageable.class))).thenReturn(new PageImpl<>(List.of(newest), PageRequest.of(0, 2), 3));
+
+        OrderPage page = orderService.findRecent(2);
+
+        ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
+        verify(orderRepository).findAll(captor.capture());
+        assertThat(captor.getValue().getPageNumber()).isZero();
+        assertThat(captor.getValue().getPageSize()).isEqualTo(2);
+        assertThat(captor.getValue().getSort().getOrderFor("createdAt").getDirection()).isEqualTo(Sort.Direction.DESC);
+        assertThat(page.items()).extracting(OrderResponse::getId).containsExactly(newest.getId());
+        assertThat(page.total()).isEqualTo(3);
     }
 
     @Test

@@ -7,12 +7,12 @@ import { renderWithClient } from '../test/utils';
 import { FlowTracker } from './FlowTracker';
 
 vi.mock('../api/orders', () => ({ getOrder: vi.fn(), confirmOrder: vi.fn(), cancelOrder: vi.fn() }));
-vi.mock('../api/payments', () => ({ listPayments: vi.fn() }));
-vi.mock('../api/invoices', () => ({ listInvoices: vi.fn() }));
+vi.mock('../api/payments', () => ({ listPaymentsByOrder: vi.fn() }));
+vi.mock('../api/invoices', () => ({ listInvoicesByOrder: vi.fn() }));
 
 import { cancelOrder, confirmOrder, getOrder } from '../api/orders';
-import { listInvoices } from '../api/invoices';
-import { listPayments } from '../api/payments';
+import { listInvoicesByOrder } from '../api/invoices';
+import { listPaymentsByOrder } from '../api/payments';
 
 const ID = '3fa85f64-5717-4562-b3fc-2c963f66afa6';
 const order = (status: Order['status'] = 'PENDING'): Order => ({ id: ID, customerId: 'c', amount: 10, status, createdAt: '2026-10-05T10:00:00Z', updatedAt: 't' });
@@ -26,8 +26,8 @@ const state = (step: 'order' | 'payment' | 'invoice') => screen.getByTestId(`ste
 beforeEach(() => {
   vi.useFakeTimers();
   vi.mocked(getOrder).mockResolvedValue(order());
-  vi.mocked(listPayments).mockResolvedValue([]);
-  vi.mocked(listInvoices).mockResolvedValue([]);
+  vi.mocked(listPaymentsByOrder).mockResolvedValue([]);
+  vi.mocked(listInvoicesByOrder).mockResolvedValue([]);
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -45,14 +45,21 @@ describe('FlowTracker', () => {
     await tick(0);
     expect([state('order'), state('payment'), state('invoice')]).toEqual(['done', 'waiting', 'waiting']);
 
-    vi.mocked(listPayments).mockResolvedValue([payment('RESERVED')]);
-    vi.mocked(listInvoices).mockResolvedValue([invoice('ISSUED')]);
+    vi.mocked(listPaymentsByOrder).mockResolvedValue([payment('RESERVED')]);
+    vi.mocked(listInvoicesByOrder).mockResolvedValue([invoice('ISSUED')]);
     await tick(2000);
     expect([state('order'), state('payment'), state('invoice')]).toEqual(['done', 'done', 'done']);
 
     const calls = vi.mocked(getOrder).mock.calls.length;
     await tick(20_000);
     expect(vi.mocked(getOrder).mock.calls.length).toBe(calls); // parou: estado final
+  });
+
+  it('consulta pagamento e nota só do pedido acompanhado (nunca as listas completas)', async () => {
+    renderWithClient(<FlowTracker orderId={ID} />);
+    await tick(0);
+    expect(vi.mocked(listPaymentsByOrder)).toHaveBeenCalledWith(ID);
+    expect(vi.mocked(listInvoicesByOrder)).toHaveBeenCalledWith(ID);
   });
 
   it('atualiza a cada ~2 s enquanto aguarda', async () => {
@@ -65,7 +72,7 @@ describe('FlowTracker', () => {
   });
 
   it('pagamento FAILED: nota "não se aplica" e link do Kafbat para payment.failed', async () => {
-    vi.mocked(listPayments).mockResolvedValue([payment('FAILED')]);
+    vi.mocked(listPaymentsByOrder).mockResolvedValue([payment('FAILED')]);
     renderWithClient(<FlowTracker orderId={ID} />);
     await tick(0);
 
@@ -75,8 +82,8 @@ describe('FlowTracker', () => {
   });
 
   it('nota FAILED: link do Kafbat para invoice.failed', async () => {
-    vi.mocked(listPayments).mockResolvedValue([payment('RESERVED')]);
-    vi.mocked(listInvoices).mockResolvedValue([invoice('FAILED')]);
+    vi.mocked(listPaymentsByOrder).mockResolvedValue([payment('RESERVED')]);
+    vi.mocked(listInvoicesByOrder).mockResolvedValue([invoice('FAILED')]);
     renderWithClient(<FlowTracker orderId={ID} />);
     await tick(0);
 
@@ -114,7 +121,7 @@ describe('FlowTracker', () => {
   });
 
   it('serviço de pagamentos fora do ar: só aquele painel fica indisponível, o resto segue', async () => {
-    vi.mocked(listPayments).mockRejectedValue(new ApiError(503, 'x'));
+    vi.mocked(listPaymentsByOrder).mockRejectedValue(new ApiError(503, 'x'));
     renderWithClient(<FlowTracker orderId={ID} />);
     await tick(0);
 

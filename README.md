@@ -126,6 +126,35 @@ k8s as portas dos Services, `8081/8082/8083`), `KAFBAT_URL` (padrão `http://loc
 (padrão `orderslab`). Desenvolvimento: `cd frontend-react && npm ci && npm run dev` (proxy do Vite para `localhost:8081-8083`);
 gates: `npm run lint && npm test && npm run build`. Detalhes: [specs/019-lab-ui](specs/019-lab-ui/quickstart.md).
 
+As listagens das APIs não devolvem a tabela inteira: `GET /api/{orders|payments|invoices}` traz os mais recentes
+(`?limit=`, padrão 200, de 1 a 500) com o total no cabeçalho `X-Total-Count`, e `GET /api/{payments|invoices}?orderId=<uuid>`
+traz só os registros de um pedido, que é o que a tela de acompanhamento consulta a cada 2 s. Ver
+[specs/021-filtro-polling-por-pedido](specs/021-filtro-polling-por-pedido/contracts/list-endpoints.md).
+
+#### Teste de carga (k6)
+
+A suíte em [`load-tests/`](load-tests/README.md) simula uma Black Friday de ponta a ponta pela porta da UI
+(`load-tests/run.sh smoke|load|blackfriday|spike|stress|soak`), com coletor de lag do Kafka, outbox e Postgres
+(`load-tests/scripts/monitor.sh`) e limpeza dos pedidos de teste (`load-tests/scripts/cleanup.sh`).
+
+#### Limites de memória e variáveis de produção
+
+Cada serviço do Compose tem `mem_limit` (soma ≈ 6,2 GB, pensada para uma VPS de 8 GB), `restart: unless-stopped` e log
+rotacionado (10 MB × 3). As JVMs dimensionam o heap pelo limite (`-XX:MaxRAMPercentage=65`, ~500 MB de heap nos 768 MB
+das APIs), o Kafka tem heap fixo de 512 MB, o Jaeger guarda no máximo 20 mil traces, o Prometheus retém 7 dias e o
+Collector recusa dados acima de 80% do próprio limite. O orçamento completo está em
+[specs/022-limites-memoria-stack](specs/022-limites-memoria-stack/research.md). Os manifests `infra/k8s/` têm os mesmos
+limites (requests = metade).
+
+| Variável (`.env` ao lado do compose) | Padrão | Uso |
+|---|---|---|
+| `TRACING_SAMPLING_PROBABILITY` | `1.0` | Fração de traces amostrados; em produção, algo como `0.1` |
+| `SPRING_JPA_SHOW_SQL` | `false` | `true` volta a logar cada SQL (só para depuração) |
+
+Na VPS, crie também um swap de 2–4 GB (`fallocate -l 4G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon
+/swapfile`, mais `vm.swappiness=10`). Sem swap, a falta de memória vira thrashing e trava a máquina inteira, que foi o
+que aconteceu no teste de carga de 2026-10-18.
+
 Para derrubar os containers:
 
 ```bash

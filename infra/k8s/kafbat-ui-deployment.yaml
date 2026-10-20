@@ -17,12 +17,20 @@ spec:
     spec:
       containers:
         - env:
+            - name: JAVA_TOOL_OPTIONS
+              value: "-XX:MaxRAMPercentage=65"
             - name: KAFKA_CLUSTERS_0_NAME
               value: orderslab
             - name: KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS
               value: kafka:29092
           image: ghcr.io/kafbat/kafka-ui:v1.5.0
           name: kafbat-ui
+          # spec 022: limite igual ao do Compose; request = metade (cluster local, 3 réplicas das APIs)
+          resources:
+            requests:
+              memory: 192Mi
+            limits:
+              memory: 384Mi
           ports:
             - containerPort: 8080
               protocol: TCP

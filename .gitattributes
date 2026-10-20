@@ -1,0 +1,2 @@
+# scripts executados em contêineres Linux precisam de LF (core.autocrlf=true no Windows quebraria o shebang)
+*.sh text eol=lf
