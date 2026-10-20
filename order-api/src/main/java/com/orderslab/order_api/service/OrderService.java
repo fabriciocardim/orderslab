@@ -1,5 +1,6 @@
 package com.orderslab.order_api.service;
 
+import com.orderslab.order_api.dto.OrderPage;
 import com.orderslab.order_api.dto.OrderRequest;
 import com.orderslab.order_api.dto.OrderResponse;
 import com.orderslab.order_api.config.KafkaTopicsConfig;
@@ -14,12 +15,14 @@ import com.orderslab.order_api.outbox.OutboxWriter;
 import com.orderslab.order_api.repository.OrderRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 public class OrderService {
@@ -86,10 +89,13 @@ public class OrderService {
         return toResponse(findOrThrow(orderId));
     }
 
-    public List<OrderResponse> findAll() {
-        return orderRepository.findAll().stream()
-                .map(this::toResponse)
-                .collect(Collectors.toList());
+    public OrderPage findRecent(int limit) {
+        Page<Order> page = orderRepository.findAll(PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "createdAt")));
+        log.atDebug()
+                .addKeyValue("limit", limit)
+                .addKeyValue("total", page.getTotalElements())
+                .log("Recent orders listed");
+        return new OrderPage(page.map(this::toResponse).getContent(), page.getTotalElements());
     }
 
     private Order findOrThrow(UUID orderId) {

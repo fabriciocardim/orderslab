@@ -18,6 +18,12 @@ spec:
       containers:
         - image: grafana/grafana:13.2.3
           name: grafana
+          # spec 022: limite igual ao do Compose; request = metade (cluster local, 3 réplicas das APIs)
+          resources:
+            requests:
+              memory: 128Mi
+            limits:
+              memory: 256Mi
           ports:
             - containerPort: 3000
               protocol: TCP

@@ -1,5 +1,6 @@
 package com.orderslab.invoice_api.service;
 
+import com.orderslab.invoice_api.dto.InvoicePage;
 import com.orderslab.invoice_api.dto.InvoiceRequest;
 import com.orderslab.invoice_api.dto.InvoiceResponse;
 import com.orderslab.invoice_api.exception.InvalidStatusTransitionException;
@@ -9,11 +10,13 @@ import com.orderslab.invoice_api.model.InvoiceStatus;
 import com.orderslab.invoice_api.repository.InvoiceRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 public class InvoiceService {
@@ -68,10 +71,25 @@ public class InvoiceService {
         return toResponse(findOrThrow(invoiceId));
     }
 
-    public List<InvoiceResponse> findAll() {
-        return invoiceRepository.findAll().stream()
+    public List<InvoiceResponse> findByOrderId(UUID orderId) {
+        // order_id é VARCHAR com o UUID em minúsculas (como UUID.toString())
+        List<InvoiceResponse> found = invoiceRepository.findByOrderIdOrderByCreatedAtDesc(orderId.toString()).stream()
                 .map(this::toResponse)
-                .collect(Collectors.toList());
+                .toList();
+        log.atDebug()
+                .addKeyValue("orderId", orderId)
+                .addKeyValue("count", found.size())
+                .log("Invoices listed by order");
+        return found;
+    }
+
+    public InvoicePage findRecent(int limit) {
+        Page<Invoice> page = invoiceRepository.findAll(PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "createdAt")));
+        log.atDebug()
+                .addKeyValue("limit", limit)
+                .addKeyValue("total", page.getTotalElements())
+                .log("Recent invoices listed");
+        return new InvoicePage(page.map(this::toResponse).getContent(), page.getTotalElements());
     }
 
     private Invoice findOrThrow(UUID invoiceId) {

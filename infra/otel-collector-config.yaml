@@ -10,6 +10,12 @@ receivers:
         endpoint: 0.0.0.0:4318
 
 processors:
+  # spec 022: acima de 80% do limite do contêiner o Collector recusa dados novos (os SDKs reenviam/descartam)
+  # em vez de crescer até o kernel matá-lo; precisa ser o primeiro processor de cada pipeline
+  memory_limiter:
+    check_interval: 1s
+    limit_percentage: 80
+    spike_limit_percentage: 25
   batch:
 
 exporters:
@@ -33,13 +39,13 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch]
+      processors: [memory_limiter, batch]
       exporters: [otlp/jaeger]
     metrics:
       receivers: [otlp]
-      processors: [batch]
+      processors: [memory_limiter, batch]
       exporters: [otlphttp/prometheus]
     logs:
       receivers: [otlp]
-      processors: [batch]
+      processors: [memory_limiter, batch]
       exporters: [otlphttp/loki]

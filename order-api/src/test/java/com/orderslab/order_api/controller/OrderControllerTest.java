@@ -1,14 +1,18 @@
 package com.orderslab.order_api.controller;
 
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.orderslab.order_api.dto.OrderPage;
 import com.orderslab.order_api.dto.OrderResponse;
 import com.orderslab.order_api.exception.InvalidStatusTransitionException;
 import com.orderslab.order_api.exception.OrderNotFoundException;
@@ -19,6 +23,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
@@ -84,12 +90,35 @@ class OrderControllerTest {
     }
 
     @Test
-    void shouldReturn200WhenListingResources() throws Exception {
-        when(orderService.findAll()).thenReturn(List.of(sampleResponse(UUID.randomUUID(), OrderStatus.PENDING)));
+    void shouldReturnTheMostRecentWithTotalCountWhenListingWithoutFilter() throws Exception {
+        when(orderService.findRecent(200)).thenReturn(new OrderPage(List.of(sampleResponse(UUID.randomUUID(), OrderStatus.PENDING)), 3600));
 
         mockMvc.perform(get("/api/orders"))
                 .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "3600"))
                 .andExpect(jsonPath("$.length()").value(1));
+    }
+
+    @Test
+    void shouldHonorTheRequestedLimit() throws Exception {
+        when(orderService.findRecent(5)).thenReturn(new OrderPage(List.of(), 0));
+
+        mockMvc.perform(get("/api/orders").param("limit", "5"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "0"))
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"0", "501", "-1", "abc"})
+    void shouldReturn400WhenLimitIsInvalid(String limit) throws Exception {
+        mockMvc.perform(get("/api/orders").param("limit", limit))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Erro de validação"))
+                .andExpect(jsonPath("$.path").value("/api/orders"))
+                .andExpect(jsonPath("$.validationErrors[0]").value(startsWith("limit: ")));
+
+        verify(orderService, never()).findRecent(anyInt());
     }
 
     @Test

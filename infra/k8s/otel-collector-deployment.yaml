@@ -18,6 +18,12 @@ spec:
       containers:
         - image: otel/opentelemetry-collector:0.162.0
           name: otel-collector
+          # spec 022: limite igual ao do Compose; request = metade (cluster local, 3 réplicas das APIs)
+          resources:
+            requests:
+              memory: 128Mi
+            limits:
+              memory: 256Mi
           ports:
             - containerPort: 4317
               protocol: TCP

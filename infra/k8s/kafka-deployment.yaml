@@ -17,6 +17,8 @@ spec:
     spec:
       containers:
         - env:
+            - name: KAFKA_HEAP_OPTS
+              value: "-Xms512m -Xmx512m"
             - name: KAFKA_NODE_ID
               value: "1"
             - name: KAFKA_PROCESS_ROLES
@@ -43,6 +45,12 @@ spec:
               value: MkU3OEVBNTcwNTJENDM2Qk
           image: apache/kafka:4.2.0
           name: kafka
+          # spec 022: limite igual ao do Compose; request = metade (cluster local, 3 réplicas das APIs)
+          resources:
+            requests:
+              memory: 512Mi
+            limits:
+              memory: 1024Mi
           ports:
             - containerPort: 9092
               protocol: TCP

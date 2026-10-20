@@ -25,6 +25,12 @@ spec:
               value: apis_admin
           image: postgres:15-alpine
           name: postgres-api
+          # spec 022: limite igual ao do Compose; request = metade (cluster local, 3 réplicas das APIs)
+          resources:
+            requests:
+              memory: 384Mi
+            limits:
+              memory: 768Mi
           ports:
             - containerPort: 5432
               protocol: TCP

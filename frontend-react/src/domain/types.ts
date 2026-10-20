@@ -30,6 +30,12 @@ export interface Invoice {
   updatedAt: string;
 }
 
+/** Lista limitada devolvida pelos serviços: os mais recentes + o total existente (cabeçalho X-Total-Count). */
+export interface ListPage<T> {
+  items: T[];
+  total: number;
+}
+
 export type Health = 'UP' | 'DOWN' | 'UNKNOWN';
 
 export type StepState = 'done' | 'failed' | 'waiting' | 'not_applicable' | 'cancelled';

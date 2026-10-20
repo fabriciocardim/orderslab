@@ -22,8 +22,15 @@ spec:
             - --web.console.libraries=/usr/share/prometheus/console_libraries
             - --web.console.templates=/usr/share/prometheus/consoles
             - --web.enable-otlp-receiver
+            - --storage.tsdb.retention.time=7d
           image: prom/prometheus:v3.13.4
           name: prometheus
+          # spec 022: limite igual ao do Compose; request = metade (cluster local, 3 réplicas das APIs)
+          resources:
+            requests:
+              memory: 192Mi
+            limits:
+              memory: 384Mi
           ports:
             - containerPort: 9090
               protocol: TCP

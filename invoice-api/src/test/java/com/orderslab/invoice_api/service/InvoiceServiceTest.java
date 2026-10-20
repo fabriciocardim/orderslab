@@ -4,7 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+import com.orderslab.invoice_api.dto.InvoicePage;
 import com.orderslab.invoice_api.dto.InvoiceRequest;
 import com.orderslab.invoice_api.dto.InvoiceResponse;
 import com.orderslab.invoice_api.exception.InvalidStatusTransitionException;
@@ -15,15 +18,21 @@ import com.orderslab.invoice_api.repository.InvoiceRepository;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 @ExtendWith(MockitoExtension.class)
 class InvoiceServiceTest {
@@ -51,7 +60,8 @@ class InvoiceServiceTest {
             UUID id = invocation.getArgument(0);
             return Optional.ofNullable(savedInvoices.get(id));
         });
-        lenient().when(invoiceRepository.findAll()).thenAnswer(invocation -> new ArrayList<>(savedInvoices.values()));
+        lenient().when(invoiceRepository.findAll(any(Pageable.class))).thenAnswer(invocation ->
+                new PageImpl<>(new ArrayList<>(savedInvoices.values()), invocation.getArgument(0), savedInvoices.size()));
     }
 
     private InvoiceResponse createInvoice() {
@@ -128,7 +138,36 @@ class InvoiceServiceTest {
     }
 
     @Test
-    void shouldReturnEmptyListWhenNoneCreated() {
-        assertThat(invoiceService.findAll()).isEmpty();
+    void shouldReturnAnEmptyPageWhenNoneCreated() {
+        InvoicePage page = invoiceService.findRecent(200);
+
+        assertThat(page.items()).isEmpty();
+        assertThat(page.total()).isZero();
+    }
+
+    @Test
+    void shouldAskTheRepositoryForTheMostRecentPageOfTheRequestedSize() {
+        Invoice newest = new Invoice(ORDER_ID, PAYMENT_ID, BigDecimal.TEN);
+        when(invoiceRepository.findAll(any(Pageable.class))).thenReturn(new PageImpl<>(List.of(newest), PageRequest.of(0, 2), 3));
+
+        InvoicePage page = invoiceService.findRecent(2);
+
+        ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
+        verify(invoiceRepository).findAll(captor.capture());
+        assertThat(captor.getValue().getPageNumber()).isZero();
+        assertThat(captor.getValue().getPageSize()).isEqualTo(2);
+        assertThat(captor.getValue().getSort().getOrderFor("createdAt").getDirection()).isEqualTo(Sort.Direction.DESC);
+        assertThat(page.items()).extracting(InvoiceResponse::getId).containsExactly(newest.getId());
+        assertThat(page.total()).isEqualTo(3);
+    }
+
+    @Test
+    void shouldQueryTheRepositoryByTheOrderIdAsALowercaseString() {
+        Invoice record = new Invoice(ORDER_ID, PAYMENT_ID, BigDecimal.TEN);
+        when(invoiceRepository.findByOrderIdOrderByCreatedAtDesc(ORDER_ID)).thenReturn(List.of(record));
+
+        assertThat(invoiceService.findByOrderId(UUID.fromString(ORDER_ID.toUpperCase())))
+                .extracting(InvoiceResponse::getId)
+                .containsExactly(record.getId());
     }
 }

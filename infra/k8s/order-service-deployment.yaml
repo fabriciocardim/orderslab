@@ -21,6 +21,12 @@ spec:
         # otel-collector-service.yaml) usa o mesmo hostname/porta — resolve sem
         # necessidade de override, igual ao Docker Compose (T010).
         - env:
+            - name: JAVA_TOOL_OPTIONS
+              value: "-XX:MaxRAMPercentage=65"
+            - name: MANAGEMENT_TRACING_SAMPLING_PROBABILITY
+              value: "1.0"
+            - name: SPRING_JPA_SHOW_SQL
+              value: "false"
             - name: SPRING_DATASOURCE_PASSWORD
               value: order_password
             - name: SPRING_DATASOURCE_URL
@@ -32,6 +38,12 @@ spec:
           image: order-service
           imagePullPolicy: Never
           name: order-api
+          # spec 022: limite igual ao do Compose; request = metade (cluster local, 3 réplicas das APIs)
+          resources:
+            requests:
+              memory: 384Mi
+            limits:
+              memory: 768Mi
           ports:
             - containerPort: 8080
               protocol: TCP

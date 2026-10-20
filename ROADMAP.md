@@ -163,6 +163,28 @@ Fase 3 (Apache Airflow).
   sem OpenTelemetry de navegador na v1; BFF descartado (pode voltar como evolução). Ver
   [specs/019-lab-ui](specs/019-lab-ui/research.md). (I, IV, VI).
 
+### Complemento — Desempenho sob carga (fora da numeração das fases)
+- **T1** 🚧 Suíte de teste de carga k6 (`load-tests/`) — adiantamento declarado. Simula Black Friday de ponta a ponta
+  pela porta do usuário (nginx da UI): compradores (arrival rate), visitantes, sonda de ponta a ponta com dreno e
+  navegador real opcional; perfis `smoke`/`load`/`blackfriday`/`spike`/`stress`/`soak`; `monitor.sh` (lag Kafka,
+  outbox, DLT, Postgres, `docker stats`) e `cleanup.sh`. Rodadas em produção (2026-10-18): `smoke` (1 pedido/s) passou
+  em todos os thresholds; `load` (10 pedidos/s, 50 visitantes) **derrubou a VPS** após ~10 min — listas de
+  pagamentos/notas sem paginação (~800 KB) baixadas a cada 2 s pela UI, 8.646 504 (corte de 3 s do nginx), 6 GB
+  baixados, RAM esgotada sem swap. Pipeline assíncrono sem nenhum desfecho errado. Motivou T2 e a contenção de memória.
+- **T2** ✅ Filtro por pedido no polling e listas limitadas — **Concluído (2026-10-19)** — adiantamento declarado. `GET /api/payments|invoices?orderId=`
+  devolve só os registros do pedido; listagens sem filtro dos 3 serviços limitadas (`?limit=`, padrão 200, 1–500) com
+  total em `X-Total-Count`; índices Flyway V3; UI e k6 nas rotas novas. Validado: 202 testes nos 3 serviços (eram 170; os novos de integração com Postgres real),
+  71 no frontend (eram 59), lint/tsc/build, smoke do k6 contra mock do contrato novo. Pendente: repetir o `load` em
+  produção após o deploy. Ver
+  [specs/021-filtro-polling-por-pedido](specs/021-filtro-polling-por-pedido/research.md). (I, II, III, VI).
+- **T3** ✅ Limites de memória da stack — **Concluído (2026-10-19)** — adiantamento declarado. `mem_limit` em todos os
+  serviços do Compose (soma ≈ 6,2 GB para uma VPS de 8 GB) e `resources` nos manifests k8s; heap das JVMs pelo limite
+  (`MaxRAMPercentage=65` → 500 MB em 768 MB, medido), Kafka com heap fixo de 512 MB; Jaeger com no máximo 20 mil traces,
+  Prometheus com retenção de 7 dias, `memory_limiter` no Collector; `restart: unless-stopped` e log rotacionado; amostragem
+  de traces e `show-sql` por env (`TRACING_SAMPLING_PROBABILITY`, `SPRING_JPA_SHOW_SQL`, padrão `false`). Nenhum código
+  dos serviços mudou. Recomendação de swap na VPS no README. Pendente: validar sob carga após o deploy. Ver
+  [specs/022-limites-memoria-stack](specs/022-limites-memoria-stack/research.md). (IV, VI).
+
 ### Fase 3 — Apache Airflow
 - **E3.1** Caso de uso do DAG (ex.: cancelar pedidos `PENDING` travados, reconciliação diária)
   (II).

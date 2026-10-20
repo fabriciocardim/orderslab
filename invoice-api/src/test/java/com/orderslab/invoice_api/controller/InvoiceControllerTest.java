@@ -1,14 +1,18 @@
 package com.orderslab.invoice_api.controller;
 
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.orderslab.invoice_api.dto.InvoicePage;
 import com.orderslab.invoice_api.dto.InvoiceResponse;
 import com.orderslab.invoice_api.exception.InvalidStatusTransitionException;
 import com.orderslab.invoice_api.exception.InvoiceNotFoundException;
@@ -19,6 +23,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
@@ -87,12 +93,59 @@ class InvoiceControllerTest {
     }
 
     @Test
-    void shouldReturn200WhenListingResources() throws Exception {
-        when(invoiceService.findAll()).thenReturn(List.of(sampleResponse(UUID.randomUUID(), InvoiceStatus.PENDING)));
+    void shouldReturnTheMostRecentWithTotalCountWhenListingWithoutFilter() throws Exception {
+        when(invoiceService.findRecent(200)).thenReturn(new InvoicePage(List.of(sampleResponse(UUID.randomUUID(), InvoiceStatus.PENDING)), 3600));
 
         mockMvc.perform(get("/api/invoices"))
                 .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "3600"))
                 .andExpect(jsonPath("$.length()").value(1));
+    }
+
+    @Test
+    void shouldHonorTheRequestedLimit() throws Exception {
+        when(invoiceService.findRecent(5)).thenReturn(new InvoicePage(List.of(), 0));
+
+        mockMvc.perform(get("/api/invoices").param("limit", "5"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "0"))
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"0", "501", "-1", "abc"})
+    void shouldReturn400WhenLimitIsInvalid(String limit) throws Exception {
+        mockMvc.perform(get("/api/invoices").param("limit", limit))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Erro de validação"))
+                .andExpect(jsonPath("$.path").value("/api/invoices"))
+                .andExpect(jsonPath("$.validationErrors[0]").value(startsWith("limit: ")));
+
+        verify(invoiceService, never()).findRecent(anyInt());
+    }
+
+    @Test
+    void shouldReturnOnlyTheOrdersRecordsWhenFilteringByOrderId() throws Exception {
+        when(invoiceService.findByOrderId(UUID.fromString(ORDER_ID)))
+                .thenReturn(List.of(sampleResponse(UUID.randomUUID(), InvoiceStatus.PENDING)));
+
+        mockMvc.perform(get("/api/invoices").param("orderId", ORDER_ID).param("limit", "5"))
+                .andExpect(status().isOk())
+                .andExpect(header().doesNotExist("X-Total-Count"))
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].orderId").value(ORDER_ID));
+
+        verify(invoiceService, never()).findRecent(anyInt());
+    }
+
+    @Test
+    void shouldReturn400WhenOrderIdIsNotAUuid() throws Exception {
+        mockMvc.perform(get("/api/invoices").param("orderId", "abc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Erro de validação"))
+                .andExpect(jsonPath("$.validationErrors[0]").value("orderId: valor inválido"));
+
+        verify(invoiceService, never()).findByOrderId(any());
     }
 
     @Test

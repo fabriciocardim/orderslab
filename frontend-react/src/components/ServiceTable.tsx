@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import type { ListPage } from '../domain/types';
 import { useServiceList, LIST_LIMIT } from '../hooks/useServiceList';
 import { Unavailable } from './Unavailable';
 
@@ -11,7 +12,7 @@ interface Props<T> {
   title: string;
   service: string;
   name: string;
-  fetcher: () => Promise<T[]>;
+  fetcher: () => Promise<ListPage<T>>;
   columns: Column<T>[];
   rowKey: (row: T) => string;
 }

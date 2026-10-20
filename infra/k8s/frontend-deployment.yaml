@@ -32,6 +32,12 @@ spec:
           image: frontend-react
           imagePullPolicy: Never
           name: frontend-react
+          # spec 022: limite igual ao do Compose; request = metade (cluster local, 3 réplicas das APIs)
+          resources:
+            requests:
+              memory: 32Mi
+            limits:
+              memory: 64Mi
           ports:
             - containerPort: 80
               protocol: TCP
