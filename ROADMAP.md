@@ -171,7 +171,18 @@ Fase 3 (Apache Airflow).
   em todos os thresholds; `load` (10 pedidos/s, 50 visitantes) **derrubou a VPS** após ~10 min — listas de
   pagamentos/notas sem paginação (~800 KB) baixadas a cada 2 s pela UI, 8.646 504 (corte de 3 s do nginx), 6 GB
   baixados, RAM esgotada sem swap. Pipeline assíncrono sem nenhum desfecho errado. Motivou T2 e T3; com os dois em produção, o mesmo `load` (2026-10-19)
-  passou em todos os thresholds. Próximo: `blackfriday` (50 pedidos/s).
+  passou em todos os thresholds. `stress` (degraus 10→200 pedidos/s, 2026-10-19, interrompido a 100/s): teto de ~25
+  pedidos/s — o relay do outbox do order-api publicava ~20 eventos/s com a CPU disputada (~58/s livre) e a fila chegou
+  a 6.437 eventos; CPU dos 2 vCPUs em ~194%; a VPS não travou e voltou sozinha. Depois do relay em lote e dos
+  consumidores com uma thread por partição (`feature/T002_ajuste_performance`), novo `stress` (2026-10-22, parado a
+  ~115/s pela API REST do k6, resumo gravado): **teto de ~80 pedidos/s** com `health` < 0,5 s e 152 VUs a 50/s (antes
+  829); relay acompanhando até ~80/s e drenando a ~150 eventos/s (fila máxima 590). A ~100/s a CPU satura de novo:
+  128.681 requisições, 6,2% de falha concentrada no colapso — 6.047 respostas 504 do nginx (order-api acima de 3 s,
+  sem reinício nem OOM) e 1.653 respostas 502 geradas pelo Traefik (o nginx não registrou nenhum; suspeita de corrida
+  de keep-alive Traefik↔nginx). Dados consistentes (pagamentos = pedidos, 0 DLT, 0 desfechos errados), mas pedidos
+  represados foram criados depois do 504 ao cliente: risco de duplicidade em nova tentativa. Demandas abertas:
+  idempotência do `POST /api/orders`, `keepalive_requests` no nginx e retry/access log no Traefik, limites de CPU por
+  container ou mais vCPU.
 - **T2** ✅ Filtro por pedido no polling e listas limitadas — **Concluído (2026-10-19)** — adiantamento declarado. `GET /api/payments|invoices?orderId=`
   devolve só os registros do pedido; listagens sem filtro dos 3 serviços limitadas (`?limit=`, padrão 200, 1–500) com
   total em `X-Total-Count`; índices Flyway V3; UI e k6 nas rotas novas. Validado: 202 testes nos 3 serviços (eram 170; os novos de integração com Postgres real),
