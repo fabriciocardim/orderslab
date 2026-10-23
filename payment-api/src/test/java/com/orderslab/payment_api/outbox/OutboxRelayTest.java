@@ -1,10 +1,13 @@
 package com.orderslab.payment_api.outbox;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyIterable;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -23,6 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Pageable;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
+import org.springframework.transaction.PlatformTransactionManager;
 
 @ExtendWith(MockitoExtension.class)
 class OutboxRelayTest {
@@ -37,7 +41,8 @@ class OutboxRelayTest {
 
     @BeforeEach
     void setUp() {
-        relay = new OutboxRelay(repository, kafkaTemplate, new OutboxProperties(1000, 100, 1000));
+        relay = new OutboxRelay(repository, kafkaTemplate, new OutboxProperties(1000, 100, 1000),
+                mock(PlatformTransactionManager.class));
     }
 
     @Test
@@ -49,7 +54,7 @@ class OutboxRelayTest {
         relay.relayPending();
 
         verify(kafkaTemplate).send("payment.reserved", event.getAggregateId().toString(), event.getPayload());
-        verify(repository).delete(event);
+        verify(repository).deleteAllInBatch(List.of(event));
     }
 
     @Test
@@ -72,7 +77,7 @@ class OutboxRelayTest {
     }
 
     @Test
-    void shouldStopBatchOnFirstFailureWithoutSkippingRows() {
+    void shouldDeleteOnlyRowsBeforeFirstFailure() {
         OutboxEvent first = event("payment.reserved", UUID.randomUUID());
         OutboxEvent failing = event("payment.reserved", UUID.randomUUID());
         OutboxEvent third = event("payment.failed", UUID.randomUUID());
@@ -81,13 +86,13 @@ class OutboxRelayTest {
                 .thenReturn(ok("payment.reserved"));
         when(kafkaTemplate.send(eq("payment.reserved"), eq(failing.getAggregateId().toString()), anyString()))
                 .thenReturn(CompletableFuture.failedFuture(new IllegalStateException("broker down")));
+        when(kafkaTemplate.send(eq("payment.failed"), eq(third.getAggregateId().toString()), anyString()))
+                .thenReturn(ok("payment.failed"));
 
         relay.relayPending();
 
-        verify(repository).delete(first);
-        verify(repository, never()).delete(failing);
-        verify(repository, never()).delete(third);
-        verify(kafkaTemplate, never()).send(eq("payment.failed"), anyString(), anyString());
+        // o lote sai inteiro antes dos acks: o terceiro foi enviado, mas a linha fica para o próximo ciclo
+        verify(repository).deleteAllInBatch(List.of(first));
     }
 
     @Test
@@ -99,7 +104,26 @@ class OutboxRelayTest {
 
         relay.relayPending();
 
-        verify(repository, never()).delete(any(OutboxEvent.class));
+        verify(repository, never()).deleteAllInBatch(anyIterable());
+    }
+
+    @Test
+    void shouldFetchNextBatchRightAwayWhenBatchIsFull() {
+        relay = new OutboxRelay(repository, kafkaTemplate, new OutboxProperties(1000, 2, 1000),
+                mock(PlatformTransactionManager.class));
+        OutboxEvent first = event("payment.reserved", UUID.randomUUID());
+        OutboxEvent second = event("payment.reserved", UUID.randomUUID());
+        OutboxEvent third = event("payment.reserved", UUID.randomUUID());
+        when(repository.findBatchForUpdate(any(Pageable.class)))
+                .thenReturn(List.of(first, second))
+                .thenReturn(List.of(third));
+        when(kafkaTemplate.send(anyString(), anyString(), anyString())).thenReturn(ok("payment.reserved"));
+
+        relay.relayPending();
+
+        verify(repository, times(2)).findBatchForUpdate(any(Pageable.class));
+        verify(repository).deleteAllInBatch(List.of(first, second));
+        verify(repository).deleteAllInBatch(List.of(third));
     }
 
     private static OutboxEvent event(String topic, UUID orderId) {
