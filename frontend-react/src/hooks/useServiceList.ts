@@ -13,7 +13,8 @@ export { LIST_LIMIT };
 export function useServiceList<T extends { createdAt: string }>(name: string, fetcher: () => Promise<ListPage<T>>) {
   const query = useQuery({
     queryKey: ['list', name],
-    queryFn: fetcher,
+    // sem argumentos: o react-query passa o contexto da query, que cairia no parâmetro opcional `limit` dos list*()
+    queryFn: () => fetcher(),
     refetchInterval: POLL_INTERVAL_MS,
     refetchIntervalInBackground: false,
     retry: false,

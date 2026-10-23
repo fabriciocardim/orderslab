@@ -46,6 +46,13 @@ describe('ServiceTable', () => {
     expect(screen.queryByText(/limitada/)).not.toBeInTheDocument();
   });
 
+  it('chama o fetcher sem argumentos (o contexto do react-query não pode virar ?limit=[object Object])', async () => {
+    const fetcher = vi.fn<(...args: unknown[]) => Promise<ListPage<Row>>>(() => Promise.resolve(page(rows(1))));
+    mount(fetcher);
+    await tick(0);
+    expect(fetcher).toHaveBeenCalledWith();
+  });
+
   it('lista vazia mostra mensagem (não fica em branco)', async () => {
     mount(() => Promise.resolve(page([])));
     await tick(0);
